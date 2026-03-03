@@ -274,24 +274,44 @@ async function cmdUpdate(): Promise<void> {
     }
   }
 
-  // Run bun update
+  // Update via git pull + bun install (not npm — package is not published)
   console.log('');
-  const update = Bun.spawnSync(['bun', 'install', '-g', '@jarvis-ai/daemon@latest'], {
+  const gitPull = Bun.spawnSync(['git', 'pull', '--ff-only'], {
+    cwd: PACKAGE_ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env },
   });
 
-  if (update.exitCode !== 0) {
-    const stderr = update.stderr.toString();
-    console.log(c.red('✗ Update failed:'));
-    console.log(c.dim(`  ${stderr.trim()}`));
+  if (gitPull.exitCode !== 0) {
+    const stderr = gitPull.stderr.toString();
+    // If not a git repo, try the install dir
+    const installDir = join(require('node:os').homedir(), '.jarvis', 'daemon');
+    const gitPull2 = Bun.spawnSync(['git', 'pull', '--ff-only'], {
+      cwd: installDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env },
+    });
 
-    // Restart daemon if it was running
-    if (wasRunning) {
-      console.log(c.dim('\n  Restarting daemon...'));
-      await cmdStart(['--no-open']);
+    if (gitPull2.exitCode !== 0) {
+      console.log(c.red('✗ Update failed (git pull):'));
+      console.log(c.dim(`  ${gitPull2.stderr.toString().trim() || stderr.trim()}`));
+      if (wasRunning) {
+        console.log(c.dim('\n  Restarting daemon...'));
+        await cmdStart(['--no-open']);
+      }
+      process.exit(1);
     }
-    process.exit(1);
+  }
+
+  // Reinstall dependencies
+  const bunInstall = Bun.spawnSync(['bun', 'install'], {
+    cwd: PACKAGE_ROOT,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env },
+  });
+
+  if (bunInstall.exitCode !== 0) {
+    console.log(c.yellow('! Dependencies may need manual refresh: bun install'));
   }
 
   // Get new version

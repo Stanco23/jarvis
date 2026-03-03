@@ -111,6 +111,33 @@ main() {
     BUN_VERSION=$(bun --version)
     ok "Bun v${BUN_VERSION} is installed"
   else
+    # Bun's installer requires unzip — ensure it's available
+    if ! command -v unzip &> /dev/null; then
+      info "Installing unzip (required by Bun)..."
+      if command -v apt-get &> /dev/null; then
+        sudo apt-get update -qq && sudo apt-get install -y -qq unzip >/dev/null 2>&1
+      elif command -v yum &> /dev/null; then
+        sudo yum install -y -q unzip >/dev/null 2>&1
+      elif command -v pacman &> /dev/null; then
+        sudo pacman -Sy --noconfirm unzip >/dev/null 2>&1
+      elif command -v apk &> /dev/null; then
+        sudo apk add --quiet unzip >/dev/null 2>&1
+      elif command -v brew &> /dev/null; then
+        brew install unzip 2>/dev/null
+      else
+        err "unzip is required but could not be installed automatically."
+        err "Please install unzip manually and re-run the installer."
+        exit 1
+      fi
+
+      if command -v unzip &> /dev/null; then
+        ok "unzip installed"
+      else
+        err "Failed to install unzip. Please install it manually and re-run."
+        exit 1
+      fi
+    fi
+
     info "Bun not found. Installing..."
     curl -fsSL https://bun.sh/install | bash
 
@@ -160,13 +187,12 @@ main() {
   bun install --frozen-lockfile 2>/dev/null || bun install
   ok "Dependencies installed"
 
-  # Clean stale global links before re-linking
+  # Create shell wrapper directly (avoids bun link registry lookups)
   rm -f "$HOME/.bun/bin/jarvis" 2>/dev/null || true
-  bun unlink @jarvis-ai/daemon 2>/dev/null || true
-
-  # Link the jarvis command globally via bun link
-  bun link 2>/dev/null || true
-  bun link @jarvis-ai/daemon 2>/dev/null || true
+  BUN_BIN="$HOME/.bun/bin"
+  mkdir -p "$BUN_BIN"
+  printf '#!/usr/bin/env bash\nexec bun "%s/bin/jarvis.ts" "$@"\n' "$INSTALL_DIR" > "$BUN_BIN/jarvis"
+  chmod +x "$BUN_BIN/jarvis"
 
   ensure_bun_path
   add_path_to_shell
@@ -174,20 +200,8 @@ main() {
   if command -v jarvis &> /dev/null; then
     ok "jarvis command is available"
   else
-    # bun link didn't work — create a shell wrapper as fallback
-    BUN_BIN="$HOME/.bun/bin"
-    mkdir -p "$BUN_BIN"
-    printf '#!/usr/bin/env bash\nexec bun "%s/bin/jarvis.ts" "$@"\n' "$INSTALL_DIR" > "$BUN_BIN/jarvis"
-    chmod +x "$BUN_BIN/jarvis"
-
-    ensure_bun_path
-
-    if command -v jarvis &> /dev/null; then
-      ok "jarvis command is available"
-    else
-      warn "jarvis installed but not in PATH yet. Restart your terminal or run:"
-      echo -e "    ${DIM}export PATH=\"\$HOME/.bun/bin:\$PATH\"${RESET}"
-    fi
+    warn "jarvis installed but not in PATH yet. Restart your terminal or run:"
+    echo -e "    ${DIM}export PATH=\"\$HOME/.bun/bin:\$PATH\"${RESET}"
   fi
 
   echo ""
