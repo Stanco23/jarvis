@@ -18,7 +18,7 @@ export const switchNode: NodeDefinition = {
     cases: {
       type: 'json',
       label: 'Cases',
-      description: 'JSON array of string values to match, e.g. ["pending", "active", "done"]. Matched in order against case_0, case_1, case_2.',
+      description: 'JSON array of string values to match, e.g. ["pending", "active", "done"]. Matched in order against case_0, case_1, ... case_N.',
       required: true,
       default: ['case_a', 'case_b', 'case_c'],
     },
@@ -46,10 +46,11 @@ export const switchNode: NodeDefinition = {
       try { cases = JSON.parse(config.cases); } catch { cases = []; }
     }
 
+    // Match against any number of cases (not limited to 3)
     const matchIndex = cases.findIndex(c => String(c) === String(exprValue));
-    const route = matchIndex >= 0 && matchIndex <= 2 ? `case_${matchIndex}` : 'default';
+    const route = matchIndex >= 0 ? `case_${matchIndex}` : 'default';
 
-    ctx.logger.info(`Switch: expression="${exprValue}", route="${route}"`);
+    ctx.logger.info(`Switch: expression="${exprValue}", matched case ${matchIndex}, route="${route}"`);
 
     return {
       data: { ...input.data, switch_value: exprValue, switch_route: route },

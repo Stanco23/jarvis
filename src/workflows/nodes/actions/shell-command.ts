@@ -38,10 +38,11 @@ export const shellCommandAction: NodeDefinition = {
       stderr: 'pipe',
     });
 
-    // Race between process exit and timeout
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Shell command timed out after ${timeoutMs}ms`)), timeoutMs)
-    );
+    // Race between process exit and timeout (with proper cleanup)
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Shell command timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
 
     let exitCode: number | null = null;
     try {
@@ -49,6 +50,8 @@ export const shellCommandAction: NodeDefinition = {
     } catch (err) {
       proc.kill();
       throw err;
+    } finally {
+      clearTimeout(timer);
     }
 
     const stdout = await new Response(proc.stdout).text();

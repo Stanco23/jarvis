@@ -13,10 +13,23 @@ export const mergeNode: NodeDefinition = {
   execute: async (input, _config, ctx) => {
     ctx.logger.info('Merging inputs');
 
-    // The workflow executor collects both inputs and passes combined data here.
-    // input.data may contain input_1 and input_2 keys set by the executor,
-    // or we simply deep-merge whatever is in input.data.
-    const merged: Record<string, unknown> = { ...input.data };
+    // The executor collects data from all incoming edges via Object.assign.
+    // We deep-merge by ensuring nested objects don't clobber each other.
+    const merged: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(input.data)) {
+      if (
+        key in merged &&
+        merged[key] && typeof merged[key] === 'object' && !Array.isArray(merged[key]) &&
+        value && typeof value === 'object' && !Array.isArray(value)
+      ) {
+        merged[key] = { ...(merged[key] as Record<string, unknown>), ...(value as Record<string, unknown>) };
+      } else {
+        merged[key] = value;
+      }
+    }
+
+    merged.merged_at = Date.now();
+    merged.merge_source_count = Object.keys(input.data).length;
 
     return {
       data: merged,

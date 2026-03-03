@@ -52,9 +52,22 @@ export const calendarActionNode: NodeDefinition = {
 
     ctx.logger.info(`Calendar action: ${action} event "${title}" from ${start} to ${end}`);
 
-    // Placeholder — Google Calendar API integration wired via google-api.ts in Phase 4
-    const note = 'Google Calendar integration not yet wired to workflow engine — event not created';
-    ctx.logger.warn(note);
+    let success = false;
+    let note = '';
+
+    // Try the google_calendar tool if registered
+    const toolName = 'google_calendar';
+    if (ctx.toolRegistry.has(toolName)) {
+      try {
+        await ctx.toolRegistry.execute(toolName, { action, title, start, end });
+        success = true;
+      } catch (err) {
+        throw new Error(`Calendar ${action} failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      note = 'Google Calendar tool not configured — set up Google API integration to enable calendar actions';
+      ctx.logger.warn(note);
+    }
 
     return {
       data: {
@@ -63,8 +76,8 @@ export const calendarActionNode: NodeDefinition = {
         title,
         start,
         end,
-        success: false,
-        note,
+        success,
+        note: note || undefined,
         executedAt: Date.now(),
       },
     };

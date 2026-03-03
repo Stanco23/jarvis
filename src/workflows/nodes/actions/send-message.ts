@@ -53,8 +53,8 @@ export const sendMessageAction: NodeDefinition = {
     } else {
       // Route to Telegram/Discord via tool registry
       const toolName = channel === 'telegram'
-        ? 'send_telegram_message'
-        : 'send_discord_message';
+        ? 'send_telegram'
+        : 'send_discord';
 
       try {
         if (ctx.toolRegistry.has(toolName)) {

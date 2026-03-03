@@ -31,20 +31,41 @@ export const agentTaskAction: NodeDefinition = {
 
     ctx.logger.info(`Dispatching agent task (max ${maxIterations} iterations): ${task.slice(0, 120)}`);
 
-    // Placeholder — full sub-agent integration wired in Phase 4 (Triggers + Scheduling)
-    // The LLMManager and AgentOrchestrator references will be threaded through ctx.llmManager
-    // once the ExecutionContext is enriched with the orchestrator factory.
-    const response = 'Agent task placeholder — sub-agent integration pending Phase 4.';
-    const success = true;
+    const llm = ctx.llmManager as any;
+    if (!llm?.chat) {
+      throw new Error('LLM manager not available — cannot dispatch agent task');
+    }
 
-    ctx.logger.info('Agent task completed (placeholder)');
+    // Build context from input data
+    const dataContext = JSON.stringify(input.data).slice(0, 2000);
+    const messages = [
+      {
+        role: 'system' as const,
+        content: `You are a workflow sub-agent. Complete the following task concisely. You have access to the following context data:\n\n${dataContext}\n\nRespond with the task result only.`,
+      },
+      {
+        role: 'user' as const,
+        content: task,
+      },
+    ];
+
+    const llmResponse = await llm.chat(messages, {
+      temperature: 0.3,
+      max_tokens: 2000,
+    });
+
+    const response = typeof llmResponse.content === 'string'
+      ? llmResponse.content
+      : JSON.stringify(llmResponse.content);
+
+    ctx.logger.info(`Agent task completed (${response.length} chars)`);
 
     return {
       data: {
         ...input.data,
         task,
         response,
-        success,
+        success: true,
         max_iterations: maxIterations,
       },
     };

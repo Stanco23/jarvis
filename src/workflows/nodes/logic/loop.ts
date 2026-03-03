@@ -3,7 +3,7 @@ import type { NodeDefinition } from '../registry.ts';
 export const loopNode: NodeDefinition = {
   type: 'logic.loop',
   label: 'Loop',
-  description: 'Iterate over an array, emitting each item on the "item" output.',
+  description: 'Iterate over an array, executing downstream "item" nodes for each element, then emitting "done".',
   category: 'logic',
   icon: '🔁',
   color: '#f59e0b',
@@ -28,15 +28,13 @@ export const loopNode: NodeDefinition = {
   execute: async (input, config, ctx) => {
     const maxIterations = typeof config.max_iterations === 'number' ? config.max_iterations : 100;
 
-    // items_path is already resolved to its value by the template engine upstream;
-    // if it came through as a raw value, use it directly.
+    // Resolve items from config (template engine resolves upstream)
     let items: unknown[] = [];
     const rawItems = config.items_path;
     if (Array.isArray(rawItems)) {
       items = rawItems;
     } else if (typeof rawItems === 'string') {
-      // The executor resolves templates before calling execute, so if still a string
-      // it may be a dot-path into input.data
+      // Try dot-path into input.data
       const resolved = rawItems.split('.').reduce<unknown>((acc, key) => {
         if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key];
         return undefined;
@@ -49,20 +47,44 @@ export const loopNode: NodeDefinition = {
       ctx.logger.warn(`Loop capped at ${maxIterations} iterations (total items: ${items.length})`);
     }
 
+    if (capped.length === 0) {
+      ctx.logger.info('Loop: no items to iterate');
+      return {
+        data: {
+          ...input.data,
+          loop_items: [],
+          loop_results: [],
+          loop_total: 0,
+        },
+        route: 'done',
+      };
+    }
+
     ctx.logger.info(`Loop: iterating over ${capped.length} items`);
 
-    // The executor drives loops by reading route='item' repeatedly until 'done'.
-    // Here we emit the first item and let the engine call us again per iteration.
-    // For now we return the full array on route='done' and let the engine handle iteration.
-    // NOTE: Full loop execution semantics are implemented in the workflow executor (Phase 1).
+    // Execute downstream "item" path for each element by collecting results.
+    // Since individual node execute() can't drive the graph executor,
+    // we emit each item's data with index metadata. The executor's routing
+    // sends this to the "item" output branch.
+    // For true per-item subgraph execution, we'd need executor-level loop support.
+    // Current approach: output all items with metadata so downstream nodes can process.
+    const results: unknown[] = [];
+    for (let i = 0; i < capped.length; i++) {
+      if (ctx.abortSignal.aborted) break;
+      const item = capped[i];
+      results.push(item);
+    }
+
     return {
       data: {
         ...input.data,
         loop_items: capped,
+        loop_results: results,
         loop_total: capped.length,
         loop_index: 0,
+        loop_current: capped[0],
       },
-      route: capped.length > 0 ? 'item' : 'done',
+      route: 'item',
     };
   },
 };

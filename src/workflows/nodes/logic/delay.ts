@@ -23,11 +23,13 @@ export const delayNode: NodeDefinition = {
     ctx.logger.info(`Delaying for ${delayMs}ms`);
 
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, delayMs);
-      ctx.abortSignal.addEventListener('abort', () => {
-        clearTimeout(timer);
-        reject(new Error('Delay aborted'));
-      }, { once: true });
+      if (ctx.abortSignal.aborted) { reject(new Error('Delay aborted')); return; }
+      const onAbort = () => { clearTimeout(timer); reject(new Error('Delay aborted')); };
+      const timer = setTimeout(() => {
+        ctx.abortSignal.removeEventListener('abort', onAbort);
+        resolve();
+      }, delayMs);
+      ctx.abortSignal.addEventListener('abort', onAbort, { once: true });
     });
 
     return {
