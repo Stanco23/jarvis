@@ -26,6 +26,7 @@
 | 12 | Distribution & Onboarding | DONE | `jarvis` CLI, interactive wizard, `install.sh` one-liner, npm packaging, systemd/launchd autostart |
 | 13 | Continuous Awareness | DONE | Full desktop capture, hybrid OCR+Vision, proactive suggestions, struggle detection, overlay widget |
 | 14 | Workflow Automation | DONE | n8n-style visual builder, 40 nodes, NL chat, triggers (cron/webhook/poll/observer), retry+fallback+self-heal, YAML export |
+| 16 | Autonomous Goal Pursuit | DONE | OKR hierarchy (objective→daily_action), 0.0-1.0 scoring, drill sergeant accountability, NL builder, daily rhythm, 3-view dashboard (kanban/timeline/metrics), awareness+workflow+vault integration |
 
 ---
 
@@ -187,7 +188,7 @@ A TypeScript plugin SDK that lets anyone extend JARVIS with new tools, triggers,
 
 ---
 
-### Milestone 16 — Autonomous Goal Pursuit & Long-Term Planning
+### Milestone 16 — Autonomous Goal Pursuit & Long-Term Planning [DONE]
 
 **Multi-week goals. JARVIS as your accountability partner.**
 

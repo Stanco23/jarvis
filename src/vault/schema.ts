@@ -555,4 +555,76 @@ function createTables(db: Database): void {
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_wvar_workflow ON workflow_variables(workflow_id)`);
+
+  // ── M16: Goal Pursuit ─────────────────────────────────────────────
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS goals (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT REFERENCES goals(id) ON DELETE CASCADE,
+      level TEXT NOT NULL
+        CHECK(level IN ('objective', 'key_result', 'milestone', 'task', 'daily_action')),
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      success_criteria TEXT DEFAULT '',
+      time_horizon TEXT NOT NULL DEFAULT 'quarterly'
+        CHECK(time_horizon IN ('life', 'yearly', 'quarterly', 'monthly', 'weekly', 'daily')),
+      score REAL NOT NULL DEFAULT 0.0,
+      score_reason TEXT,
+      status TEXT NOT NULL DEFAULT 'draft'
+        CHECK(status IN ('draft', 'active', 'paused', 'completed', 'failed', 'killed')),
+      health TEXT NOT NULL DEFAULT 'on_track'
+        CHECK(health IN ('on_track', 'at_risk', 'behind', 'critical')),
+      deadline INTEGER,
+      started_at INTEGER,
+      estimated_hours REAL,
+      actual_hours REAL NOT NULL DEFAULT 0,
+      authority_level INTEGER NOT NULL DEFAULT 3,
+      tags TEXT,
+      dependencies TEXT,
+      escalation_stage TEXT NOT NULL DEFAULT 'none'
+        CHECK(escalation_stage IN ('none', 'pressure', 'root_cause', 'suggest_kill')),
+      escalation_started_at INTEGER,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_goals_parent ON goals(parent_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_goals_level ON goals(level)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_goals_health ON goals(health)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_goals_deadline ON goals(deadline)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS goal_progress (
+      id TEXT PRIMARY KEY,
+      goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+      type TEXT NOT NULL
+        CHECK(type IN ('manual', 'auto_detected', 'review', 'system')),
+      score_before REAL NOT NULL,
+      score_after REAL NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'user',
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gprog_goal ON goal_progress(goal_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gprog_created ON goal_progress(created_at)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS goal_check_ins (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL
+        CHECK(type IN ('morning_plan', 'evening_review')),
+      summary TEXT NOT NULL DEFAULT '',
+      goals_reviewed TEXT,
+      actions_planned TEXT,
+      actions_completed TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gci_type ON goal_check_ins(type)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gci_created ON goal_check_ins(created_at)`);
 }

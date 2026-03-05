@@ -10,6 +10,7 @@ export type PromptContext = {
   availableSpecialists?: string;
   contentPipeline?: string[];
   authorityRules?: string;
+  activeGoals?: string;
 };
 
 /**
@@ -171,6 +172,13 @@ export function buildSystemPrompt(role: RoleDefinition, context?: PromptContext)
       for (const item of context.contentPipeline) {
         sections.push(`- ${item}`);
       }
+    }
+
+    if (context.activeGoals) {
+      sections.push('');
+      sections.push('## Active Goals');
+      sections.push('Current OKR goals you are pursuing (0.0-1.0 scoring, 0.7 = good):');
+      sections.push(context.activeGoals);
     }
 
     sections.push('');

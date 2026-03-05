@@ -526,6 +526,17 @@ export class AgentService implements Service, IAgentService {
       console.error('[AgentService] Error loading observations:', err);
     }
 
+    // Active goals context for the system prompt
+    try {
+      const { getActiveGoalsSummary } = require('../vault/retrieval.ts');
+      const goalsSummary = getActiveGoalsSummary();
+      if (goalsSummary) {
+        context.activeGoals = goalsSummary;
+      }
+    } catch {
+      // Goals module may not be available — ignore
+    }
+
     // Authority rules for the system prompt
     if (this.authorityEngine && this.role) {
       try {

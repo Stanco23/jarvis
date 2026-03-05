@@ -109,6 +109,16 @@ export type WorkflowConfig = {
   autoSuggestEnabled: boolean;
 };
 
+export type GoalConfig = {
+  enabled: boolean;
+  morning_window: { start: number; end: number };
+  evening_window: { start: number; end: number };
+  accountability_style: 'drill_sergeant' | 'supportive' | 'balanced';
+  escalation_weeks: { pressure: number; root_cause: number; suggest_kill: number };
+  auto_decompose: boolean;
+  calendar_ownership: boolean;
+};
+
 export type JarvisConfig = {
   daemon: {
     port: number;
@@ -132,6 +142,7 @@ export type JarvisConfig = {
     core_traits: string[];
   };
   workflows?: WorkflowConfig;
+  goals?: GoalConfig;
   authority: AuthorityConfig;
   heartbeat: HeartbeatConfig;
   active_role: string;  // role file name

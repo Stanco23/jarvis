@@ -165,3 +165,63 @@ export function getKnowledgeForMessage(message: string): string {
     return '';
   }
 }
+
+/**
+ * Get a summary of active goals for system prompt injection.
+ * Returns formatted text showing goal hierarchy with scores, or empty string.
+ */
+export function getActiveGoalsSummary(): string {
+  try {
+    const { findGoals } = require('./goals.ts');
+    const activeGoals = findGoals({ status: 'active' }) as Array<{
+      id: string;
+      parent_id: string | null;
+      level: string;
+      title: string;
+      score: number;
+      health: string;
+      deadline: number | null;
+    }>;
+
+    if (activeGoals.length === 0) return '';
+
+    const levelOrder: Record<string, number> = {
+      objective: 0,
+      key_result: 1,
+      milestone: 2,
+      task: 3,
+      daily_action: 4,
+    };
+
+    // Sort by level then title
+    activeGoals.sort((a, b) => {
+      const la = levelOrder[a.level] ?? 5;
+      const lb = levelOrder[b.level] ?? 5;
+      if (la !== lb) return la - lb;
+      return a.title.localeCompare(b.title);
+    });
+
+    // Cap at 15 most important goals (objectives + key results + top milestones)
+    const topGoals = activeGoals.slice(0, 15);
+
+    const lines: string[] = [];
+    for (const goal of topGoals) {
+      const indent = '  '.repeat(levelOrder[goal.level] ?? 0);
+      const healthIcon = goal.health === 'on_track' ? '+' :
+        goal.health === 'at_risk' ? '~' :
+        goal.health === 'behind' ? '-' : '!';
+      const deadlineStr = goal.deadline
+        ? ` (due: ${new Date(goal.deadline).toLocaleDateString()})`
+        : '';
+      lines.push(`${indent}[${healthIcon}] ${goal.title} — ${goal.score.toFixed(1)}/1.0${deadlineStr}`);
+    }
+
+    if (activeGoals.length > 15) {
+      lines.push(`  ... and ${activeGoals.length - 15} more active goals`);
+    }
+
+    return lines.join('\n');
+  } catch {
+    return '';
+  }
+}

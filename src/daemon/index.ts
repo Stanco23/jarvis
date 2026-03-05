@@ -53,6 +53,7 @@ let heartbeatTimer: Timer | null = null;
 let commitmentExecutor: CommitmentExecutor | null = null;
 let bgAgent: BackgroundAgentService | null = null;
 let awarenessService: import('../awareness/service.ts').AwarenessService | null = null;
+let goalService: import('../goals/service.ts').GoalService | null = null;
 
 /**
  * Parse command line arguments
@@ -142,6 +143,12 @@ async function handleShutdown(signal: string): Promise<void> {
     if (commitmentExecutor) {
       commitmentExecutor.stop();
       commitmentExecutor = null;
+    }
+
+    // Stop goal service
+    if (goalService) {
+      await goalService.stop();
+      goalService = null;
     }
 
     // Stop awareness service
@@ -405,7 +412,7 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     console.log(`[Daemon] Authority engine initialized (governed: ${authorityEngine.getConfig().governed_categories.join(', ')})`);
 
     // 9. Set up API routes + dashboard static files
-    const apiContext = {
+    const apiContext: import('./api-routes.ts').ApiContext & Record<string, unknown> = {
       healthMonitor,
       agentService,
       config: jarvisConfig,
@@ -417,7 +424,8 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       learner,
       emergencyController,
       deferredExecutor,
-      awarenessService: null as import('../awareness/service.ts').AwarenessService | null,
+      awarenessService: null as any,
+      goalService: undefined,
     };
     const apiRoutes = createApiRoutes(apiContext);
     wsService.setApiRoutes(apiRoutes);
@@ -599,6 +607,19 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
                 );
               }
             }
+
+            // M16: Route awareness events to goal auto-detection
+            if (goalService && (event.type === 'context_changed' || event.type === 'session_ended')) {
+              try {
+                const { matchAwarenessToGoals, logAutoDetectedProgress } = require('../goals/awareness-bridge.ts');
+                const matches = matchAwarenessToGoals(event.data);
+                if (matches.length > 0) {
+                  logAutoDetectedProgress(matches, event.type);
+                }
+              } catch (err) {
+                // Silently ignore — goal matching is best-effort
+              }
+            }
           },
           googleAuth
         );
@@ -699,6 +720,82 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       } catch (err) {
         console.error('[Daemon] Workflow engine failed to start:', err instanceof Error ? err.message : err);
         // Non-fatal — daemon continues without workflows
+      }
+    }
+
+    // 10f. Goal Service (M16)
+    const goalsConfig = jarvisConfig.goals;
+    if (goalsConfig?.enabled !== false) {
+      try {
+        const { GoalService } = await import('../goals/service.ts');
+        const goalSvc = new GoalService(goalsConfig ?? {
+          enabled: true,
+          morning_window: { start: 7, end: 9 },
+          evening_window: { start: 20, end: 22 },
+          accountability_style: 'drill_sergeant',
+          escalation_weeks: { pressure: 1, root_cause: 3, suggest_kill: 4 },
+          auto_decompose: true,
+          calendar_ownership: false,
+        });
+        goalSvc.setEventCallback((event) => {
+          wsService.broadcastGoalEvent(event);
+        });
+        await goalSvc.start();
+        goalService = goalSvc;
+        apiContext.goalService = goalSvc;
+
+        // Wire workflow bridge for daily rhythm
+        try {
+          const { generateRhythmWorkflows, registerGoalWorkflows } = await import('../goals/workflow-bridge.ts');
+          const effectiveConfig = goalsConfig ?? {
+            enabled: true,
+            morning_window: { start: 7, end: 9 },
+            evening_window: { start: 20, end: 22 },
+            accountability_style: 'drill_sergeant' as const,
+            escalation_weeks: { pressure: 1, root_cause: 3, suggest_kill: 4 },
+            auto_decompose: true,
+            calendar_ownership: false,
+          };
+          const rhythmWorkflows = generateRhythmWorkflows(effectiveConfig);
+          if (apiContext.triggerManager) {
+            registerGoalWorkflows(rhythmWorkflows, apiContext.triggerManager as any);
+          }
+        } catch { /* workflow bridge is optional */ }
+
+        // Register manage_goals tool for chat agent
+        try {
+          const goalToolRegistry = orchestrator.getToolRegistry();
+          if (goalToolRegistry) {
+            const { createManageGoalsTool } = await import('../actions/tools/goals.ts');
+            const { NLGoalBuilder } = await import('../goals/nl-builder.ts');
+            const { GoalEstimator } = await import('../goals/estimator.ts');
+            const { DailyRhythm } = await import('../goals/rhythm.ts');
+            const { AccountabilityEngine } = await import('../goals/accountability.ts');
+            const llm = agentService.getLLMManager();
+            const style = goalsConfig?.accountability_style ?? 'drill_sergeant';
+            const escWeeks = goalsConfig?.escalation_weeks ?? { pressure: 1, root_cause: 3, suggest_kill: 4 };
+            const goalNlBuilder = new NLGoalBuilder(llm);
+            const goalEstimator = new GoalEstimator(llm);
+            const goalRhythm = new DailyRhythm(llm, style);
+            const goalAccountability = new AccountabilityEngine(llm, style, escWeeks);
+            const manageGoalsTool = createManageGoalsTool({
+              goalService: goalSvc,
+              nlBuilder: goalNlBuilder,
+              estimator: goalEstimator,
+              rhythm: goalRhythm,
+              accountability: goalAccountability,
+            });
+            goalToolRegistry.register(manageGoalsTool);
+            console.log('[Daemon] manage_goals tool registered for chat agent');
+          }
+        } catch (err) {
+          console.error('[Daemon] Failed to register manage_goals tool:', err instanceof Error ? err.message : err);
+        }
+
+        console.log('[Daemon] Goal service started (autonomous goal pursuit)');
+      } catch (err) {
+        console.error('[Daemon] Goal service failed to start:', err instanceof Error ? err.message : err);
+        // Non-fatal — daemon continues without goals
       }
     }
 
