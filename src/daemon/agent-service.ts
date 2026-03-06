@@ -51,6 +51,7 @@ import { getKnowledgeForMessage } from '../vault/retrieval.ts';
 import type { ResearchQueue } from './research-queue.ts';
 import type { IAgentService } from './agent-service-interface.ts';
 import type { AuthorityEngine } from '../authority/engine.ts';
+import { getSidecarManager } from '../actions/tools/sidecar-route.ts';
 
 export class AgentService implements Service, IAgentService {
   name = 'agent';
@@ -464,9 +465,17 @@ export class AgentService implements Service, IAgentService {
   }
 
   private buildPromptContext(userMessage?: string): PromptContext {
+    // Check if any sidecars are enrolled (cheap DB query, controls tool guide content)
+    let hasSidecars = false;
+    try {
+      const mgr = getSidecarManager();
+      if (mgr) hasSidecars = mgr.listSidecars().length > 0;
+    } catch { /* ignore */ }
+
     const context: PromptContext = {
       currentTime: new Date().toISOString(),
       availableSpecialists: this.specialistListText || undefined,
+      hasSidecars,
     };
 
     // Retrieve relevant knowledge from vault based on user message

@@ -1,5 +1,5 @@
 import type { RoleDefinition } from './types.ts';
-import { TOOL_GUIDE } from './tool-guide.ts';
+import { buildToolGuide } from './tool-guide.ts';
 
 export type PromptContext = {
   userName?: string;
@@ -12,6 +12,7 @@ export type PromptContext = {
   contentPipeline?: string[];
   authorityRules?: string;
   activeGoals?: string;
+  hasSidecars?: boolean;
 };
 
 /**
@@ -120,8 +121,8 @@ export function buildSystemPrompt(role: RoleDefinition, context?: PromptContext)
     sections.push('');
   }
 
-  // Tool Guide (static reference)
-  sections.push(TOOL_GUIDE);
+  // Tool Guide (static reference, sidecar section conditional)
+  sections.push(buildToolGuide(context?.hasSidecars ?? false));
   sections.push('');
 
   // Current Context
