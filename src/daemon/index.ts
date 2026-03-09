@@ -164,12 +164,6 @@ async function handleShutdown(signal: string): Promise<void> {
       bgAgent = null;
     }
 
-    // Stop desktop sidecar if connected
-    try {
-      const { desktop } = await import('../actions/tools/desktop.ts');
-      if (desktop.connected) await desktop.disconnect();
-    } catch (err) { console.warn('[Daemon] Desktop disconnect failed (non-fatal):', err instanceof Error ? err.message : err); }
-
     // Stop health monitor
     if (healthMonitor) {
       healthMonitor.stop();
@@ -486,12 +480,9 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     if (jarvisConfig.awareness?.enabled !== false) {
       try {
         const { AwarenessService } = await import('../awareness/service.ts');
-        const { DesktopController } = await import('../actions/app-control/desktop-controller.ts');
-        const awarenessDesktop = new DesktopController(jarvisConfig.desktop?.sidecar_port ?? 9224);
         const svc = new AwarenessService(
           jarvisConfig,
           agentService.getLLMManager(),
-          awarenessDesktop,
           (event) => {
             // Route awareness events through existing event pipeline
             const classified = classifyEvent({
@@ -637,7 +628,14 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         await svc.start();
         awarenessService = svc;
         apiContext.awarenessService = svc;
-        console.log('[Daemon] Awareness service started (screen capture + OCR + context tracking)');
+        console.log('[Daemon] Awareness service started (event-driven OCR + context tracking)');
+
+        // Wire sidecar awareness events to awareness service
+        sidecarManager.onEvent((sidecarId, event) => {
+          if (['screen_capture', 'context_changed', 'idle_detected'].includes(event.event_type)) {
+            svc.handleSidecarEvent(sidecarId, event);
+          }
+        });
 
         // Auto-launch overlay widget (non-blocking, best-effort)
         if (jarvisConfig.awareness?.overlay_autolaunch !== false) {

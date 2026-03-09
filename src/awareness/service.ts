@@ -1,19 +1,19 @@
 /**
  * Awareness Service — Orchestrator
  *
- * Wires together CaptureEngine, OCREngine, ContextTracker, Intelligence,
+ * Wires together OCREngine, ContextTracker, Intelligence,
  * SuggestionEngine, ContextGraph, and Analytics into a single service.
- * Implements the Service interface for daemon lifecycle management.
+ * Consumes pushed events from sidecar observers (screen_capture,
+ * context_changed, idle_detected) instead of polling.
  */
 
 import type { Service, ServiceStatus } from '../daemon/services.ts';
 import type { JarvisConfig, AwarenessConfig } from '../config/types.ts';
 import type { LLMManager } from '../llm/manager.ts';
-import type { DesktopController } from '../actions/app-control/desktop-controller.ts';
 import type { AwarenessEvent, LiveContext, DailyReport, Suggestion, SessionSummary, WeeklyReport, BehavioralInsight } from './types.ts';
 import type { SuggestionType, SuggestionRow } from './types.ts';
+import type { SidecarEvent, BinaryDataInline } from '../sidecar/protocol.ts';
 
-import { CaptureEngine } from './capture-engine.ts';
 import { OCREngine } from './ocr-engine.ts';
 import { ContextTracker } from './context-tracker.ts';
 import { AwarenessIntelligence } from './intelligence.ts';
@@ -26,6 +26,7 @@ import {
   getSession,
   updateSession,
   updateCaptureRetention,
+  deleteCapturesBefore,
   markSuggestionDelivered,
   markSuggestionDismissed,
   markSuggestionActedOn,
@@ -33,39 +34,46 @@ import {
 } from '../vault/awareness.ts';
 import { createObservation } from '../vault/observations.ts';
 import { getUpcoming } from '../vault/commitments.ts';
+import { generateId } from '../vault/schema.ts';
+import { mkdirSync, existsSync, unlinkSync, readdirSync, statSync, rmdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+
+let sharp: any = null;
+try {
+  sharp = require('sharp');
+} catch { /* sharp not available — thumbnails disabled */ }
 
 export class AwarenessService implements Service {
   name = 'awareness';
   private _status: ServiceStatus = 'stopped';
 
   private config: AwarenessConfig;
-  private captureEngine: CaptureEngine;
   private ocrEngine: OCREngine;
   private contextTracker: ContextTracker;
   private intelligence: AwarenessIntelligence;
   private suggestionEngine: SuggestionEngine;
   private contextGraph: ContextGraph;
   private analytics: BehaviorAnalytics;
-  private desktop: DesktopController;
   private llm: LLMManager;
   private eventCallback: ((event: AwarenessEvent) => void) | null;
   private enabled: boolean;
+  private captureDir: string;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     jarvisConfig: JarvisConfig,
     llm: LLMManager,
-    desktop: DesktopController,
     eventCallback?: (event: AwarenessEvent) => void,
     googleAuth?: { isAuthenticated(): boolean; getAccessToken(): Promise<string> } | null
   ) {
     const cfg = jarvisConfig.awareness!;
     this.config = cfg;
     this.llm = llm;
-    this.desktop = desktop;
     this.eventCallback = eventCallback ?? null;
     this.enabled = cfg.enabled;
+    this.captureDir = cfg.capture_dir.replace(/^~/, os.homedir());
 
-    this.captureEngine = new CaptureEngine(cfg, desktop);
     this.ocrEngine = new OCREngine();
     this.contextTracker = new ContextTracker(cfg);
     this.intelligence = new AwarenessIntelligence(
@@ -97,22 +105,14 @@ export class AwarenessService implements Service {
       // 1. Initialize OCR engine
       await this.ocrEngine.initialize();
 
-      // 2. Wire capture engine event handler
-      this.captureEngine.onEvent(async (event) => {
-        if (event.type !== 'screen_capture') return;
-        await this.processCaptureEvent(event.data as {
-          captureId: string;
-          pixelChangePct: number;
-          imagePath: string;
-          imageBuffer: Buffer;
-        });
-      });
+      // 2. Ensure capture directory exists
+      mkdirSync(this.captureDir, { recursive: true });
 
-      // 3. Start capture engine
-      await this.captureEngine.start();
+      // 3. Start retention cleanup every 10 minutes
+      this.cleanupTimer = setInterval(() => this.cleanupRetention(), 10 * 60 * 1000);
 
       this._status = 'running';
-      console.log('[Awareness] Service started — capture + OCR + context tracking active');
+      console.log('[Awareness] Service started — listening for sidecar events (OCR + context tracking active)');
     } catch (err) {
       this._status = 'error';
       console.error('[Awareness] Failed to start:', err instanceof Error ? err.message : err);
@@ -126,8 +126,11 @@ export class AwarenessService implements Service {
     // End current session
     this.contextTracker.endCurrentSession();
 
-    // Stop engines
-    await this.captureEngine.stop();
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+
     await this.ocrEngine.shutdown();
 
     this._status = 'stopped';
@@ -193,6 +196,164 @@ export class AwarenessService implements Service {
     return this.enabled;
   }
 
+  // ── Sidecar Event Handler ──
+
+  async handleSidecarEvent(sidecarId: string, event: SidecarEvent): Promise<void> {
+    if (this._status !== 'running') return;
+
+    try {
+      switch (event.event_type) {
+        case 'screen_capture':
+          await this.handleScreenCapture(sidecarId, event);
+          break;
+        case 'context_changed':
+          this.handleContextChanged(sidecarId, event);
+          break;
+        case 'idle_detected':
+          this.handleIdleDetected(sidecarId, event);
+          break;
+      }
+    } catch (err) {
+      console.error(`[Awareness] Error handling ${event.event_type} from ${sidecarId}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  // ── Event Handlers ──
+
+  private async handleScreenCapture(sidecarId: string, event: SidecarEvent): Promise<void> {
+    // Extract image buffer from binary data
+    let imageBuffer: Buffer | null = null;
+
+    if (event.binary) {
+      if (event.binary.type === 'inline' && 'data' in event.binary) {
+        imageBuffer = Buffer.from((event.binary as BinaryDataInline).data, 'base64');
+      }
+      // TODO: Handle binary ref (large screenshots) — requires binary frame lookup
+    }
+
+    if (!imageBuffer) {
+      console.warn('[Awareness] screen_capture event without image data');
+      return;
+    }
+
+    const payload = event.payload as Record<string, unknown>;
+    const pixelChangePct = (payload.pixel_change_pct as number) ?? 0;
+    const captureId = String(payload.capture_id ?? generateId());
+
+    // Save to disk
+    const imagePath = this.saveCapture(imageBuffer, event.timestamp);
+    const thumbnailPath = await this.generateThumbnail(imagePath);
+
+    // Run through existing pipeline
+    await this.processCaptureEvent({
+      captureId,
+      pixelChangePct,
+      imagePath,
+      thumbnailPath: thumbnailPath ?? undefined,
+      imageBuffer,
+    });
+  }
+
+  private handleContextChanged(_sidecarId: string, event: SidecarEvent): void {
+    const payload = event.payload as Record<string, unknown>;
+    const toApp = String(payload.to_app ?? '');
+    const toWindow = String(payload.to_window ?? '');
+
+    // Feed context change to tracker (simulates what processCapture does for window changes)
+    if (toApp || toWindow) {
+      this.contextTracker.updateWindowInfo(toApp, toWindow);
+    }
+  }
+
+  private handleIdleDetected(_sidecarId: string, event: SidecarEvent): void {
+    const payload = event.payload as Record<string, unknown>;
+    const durationMs = (payload.duration_ms as number) ?? 0;
+    const appName = String(payload.app_name ?? '');
+
+    // Feed idle info to context tracker for stuck detection
+    this.contextTracker.reportIdle(appName, durationMs);
+  }
+
+  // ── Capture Storage ──
+
+  private saveCapture(imageBuffer: Buffer, timestamp: number): string {
+    const date = new Date(timestamp);
+    const dateDir = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const fileName = `${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}-${String(date.getSeconds()).padStart(2, '0')}.png`;
+
+    const dir = path.join(this.captureDir, dateDir);
+    mkdirSync(dir, { recursive: true });
+
+    const filePath = path.join(dir, fileName);
+    writeFileSync(filePath, imageBuffer);
+
+    return filePath;
+  }
+
+  private async generateThumbnail(fullImagePath: string): Promise<string | null> {
+    if (!sharp) return null;
+
+    const thumbPath = fullImagePath.replace(/\.png$/, '-thumb.jpg');
+    try {
+      await sharp(fullImagePath).resize(200).jpeg({ quality: 60 }).toFile(thumbPath);
+      return thumbPath;
+    } catch {
+      return null;
+    }
+  }
+
+  private cleanupRetention(): void {
+    try {
+      const now = Date.now();
+      const fullCutoff = now - (this.config.retention.full_hours * 60 * 60 * 1000);
+      const keyMomentCutoff = now - (this.config.retention.key_moment_hours * 60 * 60 * 1000);
+
+      let fullDeleted = 0;
+      let keyDeleted = 0;
+      try {
+        fullDeleted = deleteCapturesBefore(fullCutoff, 'full');
+        keyDeleted = deleteCapturesBefore(keyMomentCutoff, 'key_moment');
+      } catch { /* DB may not be initialized in tests */ }
+
+      if (!existsSync(this.captureDir)) return;
+
+      const dateDirs = readdirSync(this.captureDir);
+      for (const dateDir of dateDirs) {
+        const dirPath = path.join(this.captureDir, dateDir);
+        try {
+          const stat = statSync(dirPath);
+          if (!stat.isDirectory()) continue;
+
+          const files = readdirSync(dirPath);
+          let remaining = files.length;
+
+          for (const file of files) {
+            const filePath = path.join(dirPath, file);
+            try {
+              const fileStat = statSync(filePath);
+              if (fileStat.mtimeMs < keyMomentCutoff) {
+                unlinkSync(filePath);
+                remaining--;
+              }
+            } catch { /* file already gone */ }
+          }
+
+          if (remaining === 0) {
+            try {
+              if (readdirSync(dirPath).length === 0) rmdirSync(dirPath);
+            } catch { /* ignore */ }
+          }
+        } catch { /* skip */ }
+      }
+
+      if (fullDeleted > 0 || keyDeleted > 0) {
+        console.log(`[Awareness] Retention cleanup: ${fullDeleted} full, ${keyDeleted} key_moment captures deleted`);
+      }
+    } catch (err) {
+      console.error('[Awareness] Retention cleanup error:', err instanceof Error ? err.message : err);
+    }
+  }
+
   // ── Processing Pipeline ──
 
   private async processCaptureEvent(data: {
@@ -210,25 +371,20 @@ export class AwarenessService implements Service {
         ocrText = ocr.text;
       }
 
-      // 2. Get active window title via desktop controller
-      let windowTitle: string | undefined;
-      try {
-        await this.desktop.connect();
-        const activeWindow = await this.desktop.getActiveWindow();
-        windowTitle = activeWindow?.title;
-      } catch { /* sidecar not available */ }
+      // 2. Context tracking — detect app changes, stuck states, errors
+      // Window info is now pushed separately via context_changed events
+      const windowTitle = this.contextTracker.getLastWindowTitle();
 
-      // 3. Context tracking — detect app changes, stuck states, errors
       const { context, events } = this.contextTracker.processCapture(
         data.captureId,
         ocrText,
         windowTitle
       );
 
-      // 4. Entity linking
+      // 3. Entity linking
       this.contextGraph.linkCaptureToEntities(context);
 
-      // 5. Store capture metadata in DB
+      // 4. Store capture metadata in DB
       createCapture({
         timestamp: context.timestamp,
         sessionId: context.sessionId,
@@ -242,13 +398,13 @@ export class AwarenessService implements Service {
         filePath: context.filePath ?? undefined,
       });
 
-      // 5b. Promote to key_moment retention if significant events fired
+      // 4b. Promote to key_moment retention if significant events fired
       const keyMomentEventTypes = ['error_detected', 'stuck_detected', 'context_changed'];
       if (events.some(e => keyMomentEventTypes.includes(e.type))) {
         try { updateCaptureRetention(data.captureId, 'key_moment'); } catch { /* best-effort */ }
       }
 
-      // 6. Store as observation
+      // 5. Store as observation
       try {
         createObservation('screen_capture', {
           captureId: data.captureId,
@@ -258,12 +414,11 @@ export class AwarenessService implements Service {
         });
       } catch { /* observation storage is best-effort */ }
 
-      // 7. Cloud vision escalation (async, non-blocking)
+      // 6. Cloud vision escalation (async, non-blocking)
       let cloudAnalysis: string | undefined;
       if (this.config.cloud_vision_enabled && this.intelligence.shouldEscalateToCloud(context, events)) {
         const base64 = data.imageBuffer.toString('base64');
 
-        // Use specialized struggle analysis when struggle is detected
         const struggleEvent = events.find(e => e.type === 'struggle_detected');
         if (struggleEvent) {
           cloudAnalysis = await this.intelligence.analyzeStruggle(
@@ -284,10 +439,9 @@ export class AwarenessService implements Service {
         }
       }
 
-      // 8. Suggestion evaluation
+      // 7. Suggestion evaluation
       const suggestion = await this.suggestionEngine.evaluate(context, events, cloudAnalysis);
       if (suggestion) {
-        // Mark as delivered (will go to chat + voice + channels)
         try { markSuggestionDelivered(suggestion.id, 'websocket'); } catch { /* ignore */ }
 
         const suggestionEvent: AwarenessEvent = {
@@ -303,12 +457,12 @@ export class AwarenessService implements Service {
         events.push(suggestionEvent);
       }
 
-      // 9. Emit all events
+      // 8. Emit all events
       for (const event of events) {
         this.eventCallback?.(event);
       }
 
-      // 10. Session topic inference (async, non-blocking)
+      // 9. Session topic inference (async, non-blocking)
       const sessionEnd = events.find(e => e.type === 'session_ended');
       if (sessionEnd) {
         this.inferSessionTopic(sessionEnd.data as { sessionId: string; apps: string[] }).catch(err =>
@@ -335,10 +489,8 @@ export class AwarenessService implements Service {
       const endedAt = session.ended_at ?? Date.now();
       const durationMinutes = Math.round((endedAt - startedAt) / 60000);
 
-      // Only summarize sessions > 2 minutes
       if (durationMinutes < 2) return;
 
-      // Get sample OCR texts from this session's captures
       const captures = getCapturesForSession(sessionId);
       const sampleOcrTexts = captures
         .filter(c => c.ocr_text && c.ocr_text.length > 20)

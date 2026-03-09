@@ -241,6 +241,41 @@ export class ContextTracker {
     };
   }
 
+  /**
+   * Get the last known window title (set by updateWindowInfo from sidecar events).
+   */
+  getLastWindowTitle(): string | undefined {
+    return this.currentContext?.windowTitle ?? undefined;
+  }
+
+  /**
+   * Update cached window info from a sidecar context_changed event.
+   * Called externally when the sidecar pushes a window change.
+   */
+  updateWindowInfo(appName: string, windowTitle: string): void {
+    // This will be picked up by the next processCapture call
+    // Store it so processCapture can use it when no rawWindowTitle is provided
+    if (!this.currentContext) return;
+    // Directly update current context's window info
+    this.currentContext = {
+      ...this.currentContext,
+      appName: appName || this.currentContext.appName,
+      windowTitle: windowTitle || this.currentContext.windowTitle,
+    };
+  }
+
+  /**
+   * Report idle/stuck state from sidecar idle_detected event.
+   */
+  reportIdle(appName: string, durationMs: number): void {
+    // The struggle detector already handles stuck detection from processCapture,
+    // but this provides an external signal from the sidecar's window observer.
+    // We can use it to supplement the stuck detection threshold.
+    if (this.currentContext && durationMs > 0) {
+      this.sameWindowSince = Date.now() - durationMs;
+    }
+  }
+
   endCurrentSession(): void {
     if (this.currentSessionId) {
       try {

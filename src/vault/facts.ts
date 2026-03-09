@@ -49,7 +49,8 @@ export function createFact(
     'INSERT INTO facts (id, subject_id, predicate, object, confidence, source, created_at, verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
 
-  stmt.run(id, subject_id, predicate, object, confidence, source, now, null);
+  const objectStr = typeof object === 'string' ? object : JSON.stringify(object);
+  stmt.run(id, subject_id, predicate, objectStr, confidence, source, now, null);
 
   return {
     id,

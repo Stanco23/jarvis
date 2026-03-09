@@ -14,7 +14,7 @@ import { homedir } from 'node:os';
 import { spawnSync } from 'bun';
 import { c, printOk, printWarn, printErr, printInfo, askYesNo, ask, askSecret, startSpinner, detectPlatform } from './helpers.ts';
 import { LINUX_BROWSER_PATHS, MACOS_BROWSER_PATHS, type BrowserExecutable } from '../actions/browser/chrome-launcher.ts';
-import { findSidecarExecutable } from '../actions/app-control/sidecar-launcher.ts';
+// Desktop sidecar check removed — old C# bridge replaced by Go sidecar
 
 export type DepStatus = {
   name: string;
@@ -80,26 +80,8 @@ export function checkBrowser(): DepStatus {
  * Check if the desktop sidecar (FlaUI bridge) is available. WSL only.
  */
 export function checkDesktopSidecar(): DepStatus | null {
-  const platform = detectPlatform();
-  if (platform !== 'wsl') return null; // Only relevant on WSL
-
-  const exe = findSidecarExecutable();
-  if (exe) {
-    return {
-      name: 'Desktop Sidecar',
-      found: true,
-      path: exe,
-      message: `Found at ${exe}`,
-      installable: false,
-    };
-  }
-
-  return {
-    name: 'Desktop Sidecar',
-    found: false,
-    message: 'Not found (needed for Windows app control)',
-    installable: true,
-  };
+  // Old C# desktop sidecar is no longer used — replaced by Go sidecar
+  return null;
 }
 
 /**

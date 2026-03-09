@@ -11,7 +11,16 @@ const (
 	CapClipboard  SidecarCapability = "clipboard"
 	CapScreenshot SidecarCapability = "screenshot"
 	CapSystemInfo SidecarCapability = "system_info"
+	CapAwareness  SidecarCapability = "awareness"
 )
+
+// AwarenessConfig controls screen and window observer behavior.
+type AwarenessConfig struct {
+	ScreenIntervalMs   int     `yaml:"screen_interval_ms"`
+	WindowIntervalMs   int     `yaml:"window_interval_ms"`
+	MinChangeThreshold float64 `yaml:"min_change_threshold"`
+	StuckThresholdMs   int     `yaml:"stuck_threshold_ms"`
+}
 
 // SidecarTokenClaims is the JWT payload from the brain.
 type SidecarTokenClaims struct {
@@ -65,6 +74,7 @@ type SidecarConfig struct {
 	Terminal     TerminalConfig      `yaml:"terminal"`
 	Filesystem   FilesystemConfig    `yaml:"filesystem"`
 	Browser      BrowserConfig       `yaml:"browser"`
+	Awareness    AwarenessConfig     `yaml:"awareness"`
 }
 
 type TerminalConfig struct {

@@ -3,7 +3,6 @@
  */
 
 export { AwarenessService } from './service.ts';
-export { CaptureEngine } from './capture-engine.ts';
 export { OCREngine } from './ocr-engine.ts';
 export { ContextTracker } from './context-tracker.ts';
 export { AwarenessIntelligence } from './intelligence.ts';

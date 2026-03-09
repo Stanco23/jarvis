@@ -1,46 +1,44 @@
 import type { AppController, WindowInfo, UIElement } from './interface.ts';
-import { DesktopController } from './desktop-controller.ts';
 
 /**
- * Windows App Controller — delegates to DesktopController sidecar.
- * Used when running natively on Windows (not WSL).
+ * Windows App Controller — stub.
+ * Previously delegated to the C# DesktopController sidecar.
+ * TODO: Implement local platform-native commands or route via Go sidecar.
  */
 export class WindowsAppController implements AppController {
-  private controller = new DesktopController();
-
   async getActiveWindow(): Promise<WindowInfo> {
-    return this.controller.getActiveWindow();
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
-  async getWindowTree(pid: number): Promise<UIElement[]> {
-    return this.controller.getWindowTree(pid);
+  async getWindowTree(_pid: number): Promise<UIElement[]> {
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
   async listWindows(): Promise<WindowInfo[]> {
-    return this.controller.listWindows();
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
-  async clickElement(element: UIElement): Promise<void> {
-    return this.controller.clickElement(element);
+  async clickElement(_element: UIElement): Promise<void> {
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
-  async typeText(text: string): Promise<void> {
-    return this.controller.typeText(text);
+  async typeText(_text: string): Promise<void> {
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
-  async pressKeys(keys: string[]): Promise<void> {
-    return this.controller.pressKeys(keys);
+  async pressKeys(_keys: string[]): Promise<void> {
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
   async captureScreen(): Promise<Buffer> {
-    return this.controller.captureScreen();
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
-  async captureWindow(pid: number): Promise<Buffer> {
-    return this.controller.captureWindow(pid);
+  async captureWindow(_pid: number): Promise<Buffer> {
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 
-  async focusWindow(pid: number): Promise<void> {
-    return this.controller.focusWindow(pid);
+  async focusWindow(_pid: number): Promise<void> {
+    throw new Error('WindowsAppController: Not implemented. Use sidecar desktop tools with a target parameter.');
   }
 }

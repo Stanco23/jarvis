@@ -12,7 +12,8 @@ export type SidecarCapability =
   | 'browser'
   | 'clipboard'
   | 'screenshot'
-  | 'system_info';
+  | 'system_info'
+  | 'awareness';
 
 /** Sidecar status in the database */
 export type SidecarStatus = 'enrolled' | 'revoked';

@@ -2,6 +2,7 @@
 dist/
 /jarvis-sidecar
 /jarvis-sidecar.exe
+/sidecar
 
 # npm platform package binaries (built by make npm-pack)
 npm/darwin-arm64/bin/

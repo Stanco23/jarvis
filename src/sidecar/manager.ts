@@ -287,13 +287,13 @@ export class SidecarManager implements Service {
     return record ? this.toSidecarInfo(record) : null;
   }
 
-  /** Revoke a sidecar (soft delete). Disconnects if connected. */
+  /** Revoke a sidecar and remove it from the database. Disconnects if connected. */
   revokeSidecar(id: string): boolean {
     const db = getDb();
-    const result = db.run('UPDATE sidecars SET status = ? WHERE id = ? AND status = ?', ['revoked', id, 'enrolled']);
+    const result = db.run('DELETE FROM sidecars WHERE id = ? AND status = ?', [id, 'enrolled']);
     if (result.changes > 0) {
       this.connected.delete(id);
-      console.log(`[SidecarManager] Revoked sidecar ${id}`);
+      console.log(`[SidecarManager] Revoked and removed sidecar ${id}`);
       return true;
     }
     return false;

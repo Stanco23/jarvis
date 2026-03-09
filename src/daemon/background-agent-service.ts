@@ -23,8 +23,7 @@ import { loadRole } from '../roles/loader.ts';
 import { ToolRegistry } from '../actions/tools/registry.ts';
 import { NON_BROWSER_TOOLS, createBrowserTools } from '../actions/tools/builtin.ts';
 import { BrowserController } from '../actions/browser/session.ts';
-import { createDesktopTools } from '../actions/tools/desktop.ts';
-import { DesktopController } from '../actions/app-control/desktop-controller.ts';
+import { DESKTOP_TOOLS } from '../actions/tools/desktop.ts';
 import { commitmentsTool } from '../actions/tools/commitments.ts';
 import { researchQueueTool } from '../actions/tools/research.ts';
 import { buildSystemPrompt, type PromptContext } from '../roles/prompt-builder.ts';
@@ -79,9 +78,8 @@ export class BackgroundAgentService implements Service, IAgentService {
         toolRegistry.register(tool);
       }
 
-      // Desktop tools (shares sidecar port — stateless per-request)
-      const bgDesktopTools = createDesktopTools(new DesktopController());
-      for (const tool of bgDesktopTools) {
+      // Desktop tools (routed via sidecar RPC)
+      for (const tool of DESKTOP_TOOLS) {
         toolRegistry.register(tool);
       }
 

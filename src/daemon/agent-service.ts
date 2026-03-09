@@ -218,14 +218,6 @@ export class AgentService implements Service, IAgentService {
       await browser.disconnect();
     }
 
-    // Disconnect desktop sidecar if connected
-    try {
-      const { desktop } = await import('../actions/tools/desktop.ts');
-      if (desktop.connected) {
-        await desktop.disconnect();
-      }
-    } catch { /* ignore */ }
-
     this._status = 'stopped';
     console.log('[AgentService] Stopped');
   }

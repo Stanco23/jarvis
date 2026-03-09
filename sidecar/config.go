@@ -25,7 +25,7 @@ func homeDir() string {
 func defaultConfig() SidecarConfig {
 	return SidecarConfig{
 		Capabilities: []SidecarCapability{
-			CapTerminal, CapFilesystem, CapClipboard, CapScreenshot, CapSystemInfo,
+			CapTerminal, CapFilesystem, CapClipboard, CapScreenshot, CapSystemInfo, CapAwareness,
 		},
 		Terminal: TerminalConfig{
 			BlockedCommands: []string{},
@@ -37,6 +37,12 @@ func defaultConfig() SidecarConfig {
 		},
 		Browser: BrowserConfig{
 			CDPPort: 9222,
+		},
+		Awareness: AwarenessConfig{
+			ScreenIntervalMs:   7000,
+			WindowIntervalMs:   2000,
+			MinChangeThreshold: 0.02,
+			StuckThresholdMs:   120000,
 		},
 	}
 }
@@ -68,6 +74,20 @@ func LoadConfig() (*SidecarConfig, error) {
 	}
 	if len(cfg.Capabilities) == 0 {
 		cfg.Capabilities = defaultConfig().Capabilities
+	}
+
+	// Awareness defaults
+	if cfg.Awareness.ScreenIntervalMs == 0 {
+		cfg.Awareness.ScreenIntervalMs = 7000
+	}
+	if cfg.Awareness.WindowIntervalMs == 0 {
+		cfg.Awareness.WindowIntervalMs = 2000
+	}
+	if cfg.Awareness.MinChangeThreshold == 0 {
+		cfg.Awareness.MinChangeThreshold = 0.02
+	}
+	if cfg.Awareness.StuckThresholdMs == 0 {
+		cfg.Awareness.StuckThresholdMs = 120000
 	}
 
 	return &cfg, nil
