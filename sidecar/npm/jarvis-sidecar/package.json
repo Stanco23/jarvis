@@ -1,0 +1,16 @@
+{
+  "name": "@jarvis/sidecar",
+  "version": "0.1.0",
+  "description": "Jarvis sidecar client — connects to the brain and executes RPC requests locally",
+  "bin": {
+    "jarvis-sidecar": "bin/jarvis-sidecar"
+  },
+  "files": ["bin"],
+  "optionalDependencies": {
+    "@jarvis/sidecar-darwin-arm64": "0.1.0",
+    "@jarvis/sidecar-darwin-x64": "0.1.0",
+    "@jarvis/sidecar-linux-x64": "0.1.0",
+    "@jarvis/sidecar-linux-arm64": "0.1.0",
+    "@jarvis/sidecar-win32-x64": "0.1.0"
+  }
+}

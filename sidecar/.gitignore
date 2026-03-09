@@ -1,0 +1,12 @@
+# Build output
+dist/
+/jarvis-sidecar
+/jarvis-sidecar.exe
+
+# npm platform package binaries (built by make npm-pack)
+npm/darwin-arm64/bin/
+npm/darwin-x64/bin/
+npm/linux-x64/bin/
+npm/linux-arm64/bin/
+npm/win32-x64/bin/
+*.tgz

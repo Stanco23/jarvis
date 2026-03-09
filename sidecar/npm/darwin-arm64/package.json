@@ -1,0 +1,11 @@
+{
+  "name": "@jarvis/sidecar-darwin-arm64",
+  "version": "0.1.0",
+  "description": "Jarvis sidecar binary for macOS ARM64",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "bin": {
+    "jarvis-sidecar": "bin/jarvis-sidecar"
+  },
+  "files": ["bin/jarvis-sidecar"]
+}
