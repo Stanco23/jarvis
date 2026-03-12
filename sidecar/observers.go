@@ -9,7 +9,10 @@ import (
 )
 
 // EventSender sends sidecar events to the brain.
-type EventSender func(ctx context.Context, event SidecarEvent) error
+// If binaryData is provided and exceeds the ref threshold, the transport
+// will use the binary ref protocol (JSON text frame + binary WS frame)
+// instead of base64-inlining the data.
+type EventSender func(ctx context.Context, event SidecarEvent, binaryData []byte) error
 
 // ClipboardObserver polls the clipboard and emits events on change.
 type ClipboardObserver struct {
@@ -77,7 +80,7 @@ func (o *ClipboardObserver) Run(ctx context.Context, send EventSender) {
 						"length":  len(content),
 					},
 				}
-				if err := send(ctx, event); err != nil {
+				if err := send(ctx, event, nil); err != nil {
 					log.Printf("[clipboard] Failed to send event: %v", err)
 				}
 			}
@@ -133,8 +136,8 @@ func (o *ScreenObserver) capture(ctx context.Context, send EventSender) {
 
 	// Extract the raw image data from the result
 	var imageData []byte
-	if result.Binary != nil && result.Binary.Data != "" {
-		decoded, err := decodeBase64Data(result.Binary.Data)
+	if inline, ok := result.Binary.(BinaryDataInline); ok && inline.Data != "" {
+		decoded, err := decodeBase64Data(inline.Data)
 		if err != nil {
 			log.Printf("[screen] Failed to decode screenshot: %v", err)
 			return
@@ -175,36 +178,9 @@ func (o *ScreenObserver) capture(ctx context.Context, send EventSender) {
 		},
 	}
 
-	// Use sendEvent for binary ref protocol (handled by the client)
-	// For now, send via the EventSender which goes through sendJSON.
-	// Attach binary inline or ref based on size.
-	const binaryRefThreshold = 256 * 1024
-	if len(imageData) >= binaryRefThreshold {
-		refId := padTo36(time.Now().Format("20060102-150405.000"))
-		event.Binary = &BinaryDataInline{
-			Type:     "ref",
-			MimeType: "image/png",
-			Data:     refId,
-		}
-		// Send JSON event first
-		if err := send(ctx, event); err != nil {
-			log.Printf("[screen] Failed to send event: %v", err)
-			return
-		}
-		// Binary frame is sent via the client's sendBinary — but we only have EventSender.
-		// For large frames, we need access to the client. Store the data in the event payload.
-		// TODO: For now, large screenshots fall back to inline base64 via event.
-		// The proper fix is to pass the SidecarClient into observers.
-		return
-	}
-
-	// Inline base64 for small images
-	event.Binary = &BinaryDataInline{
-		Type:     "inline",
-		MimeType: "image/png",
-		Data:     base64Encode(imageData),
-	}
-	if err := send(ctx, event); err != nil {
+	// Pass raw binary data to the sender — it will choose inline base64 or
+	// binary ref protocol based on the size threshold.
+	if err := send(ctx, event, imageData); err != nil {
 		log.Printf("[screen] Failed to send event: %v", err)
 	}
 }
@@ -314,7 +290,7 @@ func (o *WindowObserver) poll(ctx context.Context, send EventSender) {
 	currentWindow := o.lastWindow
 	o.mu.Unlock()
 
-	if changed && (prevApp != "" || prevWindow != "") {
+	if changed {
 		log.Printf("[window] Context changed: %s → %s", prevApp, appName)
 		event := SidecarEvent{
 			Type:      "sidecar_event",
@@ -328,7 +304,7 @@ func (o *WindowObserver) poll(ctx context.Context, send EventSender) {
 				"to_window":   windowTitle,
 			},
 		}
-		if err := send(ctx, event); err != nil {
+		if err := send(ctx, event, nil); err != nil {
 			log.Printf("[window] Failed to send context_changed: %v", err)
 		}
 	}
@@ -347,7 +323,7 @@ func (o *WindowObserver) poll(ctx context.Context, send EventSender) {
 				"duration_ms":  stuckMs,
 			},
 		}
-		if err := send(ctx, event); err != nil {
+		if err := send(ctx, event, nil); err != nil {
 			log.Printf("[window] Failed to send idle_detected: %v", err)
 		}
 	}

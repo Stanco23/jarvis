@@ -79,7 +79,12 @@ export class SidecarManager implements Service {
         if (payload.error) {
           this.rpcTracker.fail(payload.rpc_id, new Error(`${payload.error.code}: ${payload.error.message}`));
         } else {
-          this.rpcTracker.resolve(payload.rpc_id, payload.result);
+          // Attach binary data to result when present (e.g. capture_screen returns image in binary)
+          const result = payload.result as Record<string, unknown> | undefined;
+          if (event.binary && result && typeof result === 'object') {
+            (result as Record<string, unknown>)._binary = event.binary;
+          }
+          this.rpcTracker.resolve(payload.rpc_id, result);
         }
       });
 
@@ -90,11 +95,16 @@ export class SidecarManager implements Service {
         }
       });
 
-      this.scheduler.on('sidecar_event', async (sidecarId, event) => {
+      // Register handlers for each sidecar observer event type
+      const sidecarEventTypes = ['screen_capture', 'context_changed', 'idle_detected', 'clipboard_change'];
+      const sidecarEventHandler = async (sidecarId: string, event: SidecarEvent) => {
         for (const listener of this.eventListeners) {
           listener(sidecarId, event);
         }
-      });
+      };
+      for (const type of sidecarEventTypes) {
+        this.scheduler.on(type, sidecarEventHandler);
+      }
 
       this.rpcTracker.onDetachedComplete((rpcId, result, error) => {
         if (error) {

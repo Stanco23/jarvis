@@ -35,13 +35,13 @@ import {
 import { createObservation } from '../vault/observations.ts';
 import { getUpcoming } from '../vault/commitments.ts';
 import { generateId } from '../vault/schema.ts';
-import { mkdirSync, existsSync, unlinkSync, readdirSync, statSync, rmdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, unlinkSync, readdirSync, statSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
 let sharp: any = null;
 try {
-  sharp = require('sharp');
+  sharp = (await import('sharp')).default;
 } catch { /* sharp not available — thumbnails disabled */ }
 
 export class AwarenessService implements Service {
@@ -227,21 +227,32 @@ export class AwarenessService implements Service {
     if (event.binary) {
       if (event.binary.type === 'inline' && 'data' in event.binary) {
         imageBuffer = Buffer.from((event.binary as BinaryDataInline).data, 'base64');
+      } else if (event.binary.type === 'ref') {
+        // Binary ref: payload._binary was resolved by SidecarConnection
+        const resolved = (event.payload as Record<string, unknown>)._binary as Buffer | undefined;
+        if (resolved) {
+          imageBuffer = resolved;
+        }
       }
-      // TODO: Handle binary ref (large screenshots) — requires binary frame lookup
     }
 
-    if (!imageBuffer) {
-      console.warn('[Awareness] screen_capture event without image data');
+    if (!imageBuffer || imageBuffer.length < 1000) {
       return;
     }
 
     const payload = event.payload as Record<string, unknown>;
     const pixelChangePct = (payload.pixel_change_pct as number) ?? 0;
     const captureId = String(payload.capture_id ?? generateId());
+    const windowTitle = String(payload.window_title ?? '');
+    const appName = String(payload.app_name ?? '');
+
+    // Update context tracker with window info from sidecar
+    if (appName || windowTitle) {
+      this.contextTracker.updateWindowInfo(appName, windowTitle);
+    }
 
     // Save to disk
-    const imagePath = this.saveCapture(imageBuffer, event.timestamp);
+    const imagePath = await this.saveCapture(imageBuffer, event.timestamp);
     const thumbnailPath = await this.generateThumbnail(imagePath);
 
     // Run through existing pipeline
@@ -251,6 +262,7 @@ export class AwarenessService implements Service {
       imagePath,
       thumbnailPath: thumbnailPath ?? undefined,
       imageBuffer,
+      windowTitle,
     });
   }
 
@@ -276,7 +288,7 @@ export class AwarenessService implements Service {
 
   // ── Capture Storage ──
 
-  private saveCapture(imageBuffer: Buffer, timestamp: number): string {
+  private async saveCapture(imageBuffer: Buffer, timestamp: number): Promise<string> {
     const date = new Date(timestamp);
     const dateDir = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     const fileName = `${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}-${String(date.getSeconds()).padStart(2, '0')}.png`;
@@ -285,7 +297,7 @@ export class AwarenessService implements Service {
     mkdirSync(dir, { recursive: true });
 
     const filePath = path.join(dir, fileName);
-    writeFileSync(filePath, imageBuffer);
+    await Bun.write(filePath, imageBuffer);
 
     return filePath;
   }
@@ -362,6 +374,7 @@ export class AwarenessService implements Service {
     imagePath: string;
     thumbnailPath?: string;
     imageBuffer: Buffer;
+    windowTitle?: string;
   }): Promise<void> {
     try {
       // 1. OCR — extract text from screenshot
@@ -372,8 +385,8 @@ export class AwarenessService implements Service {
       }
 
       // 2. Context tracking — detect app changes, stuck states, errors
-      // Window info is now pushed separately via context_changed events
-      const windowTitle = this.contextTracker.getLastWindowTitle();
+      // Use window title from capture source (PowerShell/sidecar), fall back to tracker state
+      const windowTitle = data.windowTitle || this.contextTracker.getLastWindowTitle();
 
       const { context, events } = this.contextTracker.processCapture(
         data.captureId,

@@ -3,18 +3,16 @@
  *
  * Detects and offers to install system dependencies during onboard:
  * - Chromium/Chrome browser (all platforms)
- * - Desktop sidecar .NET bridge (WSL only)
  * - Linux X11 tools: xdotool, xprop, imagemagick (Linux/WSL)
  * - Google OAuth tokens (optional, all platforms)
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { spawnSync } from 'bun';
 import { c, printOk, printWarn, printErr, printInfo, askYesNo, ask, askSecret, startSpinner, detectPlatform } from './helpers.ts';
 import { LINUX_BROWSER_PATHS, MACOS_BROWSER_PATHS, type BrowserExecutable } from '../actions/browser/chrome-launcher.ts';
-// Desktop sidecar check removed — old C# bridge replaced by Go sidecar
 
 export type DepStatus = {
   name: string;
@@ -74,14 +72,6 @@ export function checkBrowser(): DepStatus {
     message: 'Not found',
     installable: true,
   };
-}
-
-/**
- * Check if the desktop sidecar (FlaUI bridge) is available. WSL only.
- */
-export function checkDesktopSidecar(): DepStatus | null {
-  // Old C# desktop sidecar is no longer used — replaced by Go sidecar
-  return null;
 }
 
 /**
@@ -195,88 +185,6 @@ export async function installBrowser(): Promise<boolean> {
 
   printInfo('Install Chromium manually for your distribution.');
   return false;
-}
-
-/**
- * Build the desktop sidecar from source (WSL only).
- */
-export async function buildDesktopSidecar(): Promise<boolean> {
-  // Check if dotnet.exe is available
-  const dotnetCheck = spawnSync(['dotnet.exe', '--version'], { stdout: 'pipe', stderr: 'pipe' });
-  if (dotnetCheck.exitCode !== 0) {
-    printErr('dotnet.exe not found. The .NET SDK must be installed on Windows.');
-    printInfo('Download from: https://dot.net/download');
-    printInfo('After installing, restart your terminal and run: jarvis onboard');
-    return false;
-  }
-
-  const dotnetVersion = dotnetCheck.stdout.toString().trim();
-  printInfo(`.NET SDK ${dotnetVersion} detected`);
-
-  // Check if sidecar source exists in the package
-  const PACKAGE_ROOT = join(import.meta.dir, '../..');
-  const sidecarDir = join(PACKAGE_ROOT, 'sidecar', 'desktop-bridge');
-
-  if (!existsSync(join(sidecarDir, 'desktop-bridge.csproj'))) {
-    printErr('Sidecar source not found in package.');
-    printInfo('The sidecar may need to be downloaded separately.');
-    return false;
-  }
-
-  // Get Windows user profile for output
-  let outputDir: string;
-  try {
-    const result = spawnSync(['cmd.exe', '/C', 'echo', '%USERPROFILE%'], { stdout: 'pipe' });
-    const userProfile = result.stdout.toString().trim();
-    if (userProfile && !userProfile.includes('%')) {
-      const drive = userProfile.charAt(0).toLowerCase();
-      const rest = userProfile.slice(2).replace(/\\/g, '/');
-      outputDir = `/mnt/${drive}${rest}/.jarvis/sidecar`;
-    } else {
-      outputDir = join(sidecarDir, 'bin', 'publish');
-    }
-  } catch {
-    outputDir = join(sidecarDir, 'bin', 'publish');
-  }
-
-  // Convert paths to Windows format for dotnet.exe
-  const toWinPath = (p: string): string => {
-    if (p.startsWith('/mnt/')) {
-      const drive = p.charAt(5).toUpperCase();
-      return `${drive}:${p.slice(6).replace(/\//g, '\\')}`;
-    }
-    return p;
-  };
-
-  const winProject = toWinPath(sidecarDir);
-  const winOutput = toWinPath(outputDir);
-
-  console.log(c.dim(`  Building sidecar → ${winOutput}`));
-
-  const spin = startSpinner('Building desktop sidecar (this may take a minute)...');
-
-  const buildResult = spawnSync([
-    'dotnet.exe', 'publish', winProject,
-    '-c', 'Release',
-    '-r', 'win-x64',
-    '--self-contained',
-    '/p:PublishSingleFile=true',
-    '/p:PublishTrimmed=false',
-    '-o', winOutput,
-  ], {
-    stdout: 'pipe', stderr: 'pipe',
-  });
-
-  if (buildResult.exitCode !== 0) {
-    spin.stop();
-    printErr('Sidecar build failed.');
-    const stderr = buildResult.stderr.toString().trim();
-    if (stderr) console.log(c.dim(`  ${stderr.split('\n')[0]}`));
-    return false;
-  }
-
-  spin.stop('Desktop sidecar built successfully!');
-  return true;
 }
 
 /**
@@ -466,15 +374,10 @@ export async function setupGoogleOAuth(config: any): Promise<boolean> {
  * Called as Step 3 of the onboard wizard.
  */
 export async function runDependencyCheck(config: any): Promise<void> {
-  const platform = detectPlatform();
-
   // Collect all dependency statuses
   const deps: DepStatus[] = [];
 
   deps.push(checkBrowser());
-
-  const sidecar = checkDesktopSidecar();
-  if (sidecar) deps.push(sidecar);
 
   const linuxTools = checkLinuxTools();
   deps.push(...linuxTools);
@@ -484,7 +387,7 @@ export async function runDependencyCheck(config: any): Promise<void> {
   // Display status table
   console.log('');
   for (const dep of deps) {
-    const icon = dep.found ? c.green('✓') : c.red('✗');
+    const icon = dep.found ? c.green('\u2713') : c.red('\u2717');
     const name = dep.name.padEnd(26);
     const detail = dep.found
       ? c.dim(dep.path ?? dep.message)
@@ -514,18 +417,6 @@ export async function runDependencyCheck(config: any): Promise<void> {
       else printWarn('Browser install incomplete. Install manually later.');
     } else {
       printInfo('Skip. Install later: sudo apt install chromium-browser');
-    }
-  }
-
-  // Group: desktop sidecar
-  const missingSidecar = missing.find(d => d.name === 'Desktop Sidecar');
-  if (missingSidecar) {
-    const install = await askYesNo('Build the desktop sidecar? (Requires .NET SDK on Windows)', true);
-    if (install) {
-      const ok = await buildDesktopSidecar();
-      if (!ok) printWarn('Sidecar build incomplete. Build later with: bun run scripts/build-sidecar.ts');
-    } else {
-      printInfo('Skip. Build later with: bun run scripts/build-sidecar.ts');
     }
   }
 

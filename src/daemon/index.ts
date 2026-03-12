@@ -677,7 +677,9 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         // Wire sidecar awareness events to awareness service
         sidecarManager.onEvent((sidecarId, event) => {
           if (['screen_capture', 'context_changed', 'idle_detected'].includes(event.event_type)) {
-            svc.handleSidecarEvent(sidecarId, event);
+            svc.handleSidecarEvent(sidecarId, event).catch(err =>
+              console.error('[Daemon] Awareness sidecar event error:', err instanceof Error ? err.message : err)
+            );
           }
         });
 
@@ -859,9 +861,13 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       console.log('[Daemon] Sidecar routing enabled for run_command, read_file, write_file, list_directory');
     }
 
-    // 10h. Wire sidecar events into event pipeline
+    // 10h. Wire sidecar events into event pipeline (skip awareness events — already handled by awareness service)
+    const awarenessEventTypes = ['screen_capture', 'context_changed', 'idle_detected'];
     sidecarManager.onEvent((sidecarId, event) => {
-      const eventType = `sidecar_${event.type}`;
+      // Skip events already routed to awareness service to avoid double processing
+      if (awarenessService && awarenessEventTypes.includes(event.event_type)) return;
+
+      const eventType = `sidecar_${event.event_type}`;
       const eventData = {
         sidecar_id: sidecarId,
         ...(typeof event.payload === 'object' && event.payload !== null ? event.payload as Record<string, unknown> : { payload: event.payload }),

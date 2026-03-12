@@ -38,6 +38,26 @@ func NewHandlerRegistry(cfg *SidecarConfig, availableCaps []SidecarCapability, o
 	if caps[CapSystemInfo] {
 		registry["get_system_info"] = handleGetSystemInfo
 	}
+	if caps[CapDesktop] {
+		registry["list_windows"] = handleListWindows
+		registry["get_window_tree"] = handleGetWindowTree
+		registry["click_element"] = handleClickElement
+		registry["type_text"] = handleTypeText
+		registry["press_keys"] = handlePressKeys
+		registry["launch_app"] = handleLaunchApp
+		registry["focus_window"] = handleFocusWindow
+		registry["find_element"] = handleFindElement
+	}
+	if caps[CapBrowser] {
+		launchChromeIfNeeded(cfg)
+		registry["browser_navigate"] = makeBrowserNavigateHandler(cfg)
+		registry["browser_snapshot"] = makeBrowserSnapshotHandler(cfg)
+		registry["browser_click"] = makeBrowserClickHandler(cfg)
+		registry["browser_type"] = makeBrowserTypeHandler(cfg)
+		registry["browser_screenshot"] = makeBrowserScreenshotHandler(cfg)
+		registry["browser_scroll"] = makeBrowserScrollHandler(cfg)
+		registry["browser_evaluate"] = makeBrowserEvaluateHandler(cfg)
+	}
 
 	// Administrative handlers — not gated by capability
 	registry["get_config"] = makeGetConfigHandler(cfg)
@@ -260,7 +280,7 @@ func handleCaptureScreen(params map[string]any) (*RPCResult, error) {
 
 	return &RPCResult{
 		Result: map[string]any{"captured": true},
-		Binary: &BinaryDataInline{
+		Binary: BinaryDataInline{
 			Type:     "inline",
 			MimeType: "image/png",
 			Data:     base64.StdEncoding.EncodeToString(data),

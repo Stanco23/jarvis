@@ -1,10 +1,13 @@
 /**
  * Desktop Tools — Desktop Automation via Sidecar RPC or Local Execution
  *
- * 8 tools for controlling desktop applications. Each tool accepts a `target`
+ * 9 tools for controlling desktop applications. Each tool accepts a `target`
  * parameter to route to a specific sidecar. Without `target`, attempts local
  * execution (currently stub — TODO: implement per-platform AppController).
  * Respects --no-local-tools flag.
+ *
+ * The same tools work on all platforms (Windows, macOS, Linux). The sidecar
+ * handles platform-specific implementation details internally.
  */
 
 import type { ToolDefinition, ToolResult } from './registry.ts';
@@ -56,6 +59,11 @@ export const desktopSnapshotTool: ToolDefinition = {
       description: 'Process ID of the window (from desktop_list_windows). Omit for the active window.',
       required: false,
     },
+    depth: {
+      type: 'number',
+      description: 'Max tree depth to walk (default: 8). Decrease for faster but shallower snapshots.',
+      required: false,
+    },
   },
   execute: async (params) => {
     const target = params.target as string | undefined;
@@ -68,7 +76,7 @@ export const desktopSnapshotTool: ToolDefinition = {
 
 export const desktopClickTool: ToolDefinition = {
   name: 'desktop_click',
-  description: 'Click a UI element by its [id] from the last desktop_snapshot. After clicking, use desktop_snapshot to see the updated state.',
+  description: 'Click or interact with a UI element by its [id] from the last desktop_snapshot or desktop_find_element. Default action is "click". Use the action parameter for richer interactions like double_click, right_click, invoke, toggle, set_value, expand, etc. Available actions vary by platform.',
   category: 'desktop',
   parameters: {
     target: {
@@ -78,8 +86,18 @@ export const desktopClickTool: ToolDefinition = {
     },
     element_id: {
       type: 'number',
-      description: 'The [id] of the element to click (from desktop_snapshot)',
+      description: 'The [id] of the element to interact with (from desktop_snapshot or desktop_find_element)',
       required: true,
+    },
+    action: {
+      type: 'string',
+      description: 'Action to perform: click (default), double_click, right_click, invoke, toggle, select, set_value, get_value, get_text, expand, collapse, scroll_into_view, focus',
+      required: false,
+    },
+    value: {
+      type: 'string',
+      description: 'Value to set (only for set_value action)',
+      required: false,
     },
   },
   execute: async (params) => {
@@ -226,8 +244,53 @@ export const desktopFocusWindowTool: ToolDefinition = {
   },
 };
 
+export const desktopFindElementTool: ToolDefinition = {
+  name: 'desktop_find_element',
+  description: 'Search for UI elements by property (name, control type, class name, automation ID). Returns matching elements with [id] for use with desktop_click and desktop_type. Useful when you know what you are looking for without scanning the full tree.',
+  category: 'desktop',
+  parameters: {
+    target: {
+      type: 'string',
+      description: 'Sidecar name or ID to route this command to (omit for local execution)',
+      required: false,
+    },
+    pid: {
+      type: 'number',
+      description: 'Process ID of the window. Omit for the foreground window.',
+      required: false,
+    },
+    name: {
+      type: 'string',
+      description: 'Element name to search for (exact match)',
+      required: false,
+    },
+    control_type: {
+      type: 'string',
+      description: 'Control type to filter by (e.g., Button, Edit, Text, ComboBox, ListItem, TreeItem, MenuItem, Tab)',
+      required: false,
+    },
+    automation_id: {
+      type: 'string',
+      description: 'AutomationId to search for (Windows only, ignored on other platforms)',
+      required: false,
+    },
+    class_name: {
+      type: 'string',
+      description: 'Class name to search for',
+      required: false,
+    },
+  },
+  execute: async (params) => {
+    const target = params.target as string | undefined;
+    if (target) {
+      return routeToSidecar(target, 'find_element', params, 'desktop');
+    }
+    return localGuard();
+  },
+};
+
 /**
- * All desktop tools in a single array.
+ * All desktop tools in a single array — platform-agnostic.
  */
 export const DESKTOP_TOOLS: ToolDefinition[] = [
   desktopListWindowsTool,
@@ -238,4 +301,5 @@ export const DESKTOP_TOOLS: ToolDefinition[] = [
   desktopLaunchAppTool,
   desktopScreenshotTool,
   desktopFocusWindowTool,
+  desktopFindElementTool,
 ];
