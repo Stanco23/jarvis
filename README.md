@@ -5,10 +5,10 @@
 **Just A Rather Very Intelligent System**
 
 [![CI](https://github.com/vierisid/jarvis/actions/workflows/test.yml/badge.svg)](https://github.com/vierisid/jarvis/actions/workflows/test.yml)
-[![npm](https://img.shields.io/npm/v/@usejarvis/brain)](https://www.npmjs.com/package/@usejarvis/brain)
+[![bun](https://img.shields.io/npm/v/@usejarvis/brain?label=bun&logo=bun&color=%23f9f1e1)](https://bun.sh/packages/@usejarvis/brain)
 [![License](https://img.shields.io/badge/license-RSALv2-blue)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-Bun-%23f9f1e1)](https://bun.sh)
-[![Discord](https://img.shields.io/discord/nE3hcaFYZP?logo=discord&label=Discord)](https://discord.gg/nE3hcaFYZP)
+[![Discord](https://dcbadge.limes.pink/api/server/zfmXvE586Q?style=flat)](https://discord.gg/zfmXvE586Q)
 [![Website](https://img.shields.io/badge/website-usejarvis.dev-black)](https://usejarvis.dev)
 
 *An always-on autonomous AI daemon with desktop awareness, multi-agent hierarchy, visual workflows, and goal pursuit.*
@@ -23,23 +23,34 @@ JARVIS is not a chatbot with tools. It is a persistent daemon that sees your scr
 
 ## Table of Contents
 
-- [🔍 What Makes JARVIS Different](#-what-makes-jarvis-different)
-- [⚡ Quick Start](#-quick-start)
-- [💡 Use Cases](#-use-cases)
-- [📋 Requirements](#-requirements)
-- [📦 Installation](#-installation)
-- [🚀 Usage](#-usage)
-- [🖥️ Sidecar Setup](#️-sidecar-setup)
-- [🧠 Core Capabilities](#-core-capabilities)
-- [🎛️ Dashboard](#️-dashboard)
-- [⚙️ Configuration](#️-configuration)
-- [🏗️ Architecture](#️-architecture)
-- [🛠️ Development](#️-development)
-- [🗺️ Roadmap](#️-roadmap)
-- [📖 Documentation](#-documentation)
-- [💬 Community](#-community)
-- [🔒 Security](#-security)
-- [📄 License](#-license)
+- [JARVIS](#jarvis)
+  - [Table of Contents](#table-of-contents)
+  - [🔍 What Makes JARVIS Different](#-what-makes-jarvis-different)
+  - [⚡ Quick Start](#-quick-start)
+  - [☁️ Managed Hosting](#️-managed-hosting)
+  - [💡 Use Cases](#-use-cases)
+  - [📋 Requirements](#-requirements)
+  - [📦 Installation](#-installation)
+    - [bun (recommended)](#bun-recommended)
+    - [One-liner](#one-liner)
+    - [Manual](#manual)
+  - [🚀 Usage](#-usage)
+  - [🖥️ Sidecar Setup](#️-sidecar-setup)
+    - [1. Install the sidecar](#1-install-the-sidecar)
+    - [2. Enroll in the dashboard](#2-enroll-in-the-dashboard)
+    - [3. Run the sidecar](#3-run-the-sidecar)
+  - [🧠 Core Capabilities](#-core-capabilities)
+  - [🎛️ Dashboard](#️-dashboard)
+  - [⚙️ Configuration](#️-configuration)
+  - [🏗️ Architecture](#️-architecture)
+  - [🛠️ Development](#️-development)
+    - [Stack](#stack)
+  - [🗺️ Roadmap](#️-roadmap)
+    - [Upcoming](#upcoming)
+  - [📖 Documentation](#-documentation)
+  - [💬 Community](#-community)
+  - [🔒 Security](#-security)
+  - [📄 License](#-license)
 
 ---
 
@@ -63,12 +74,24 @@ JARVIS is not a chatbot with tools. It is a persistent daemon that sees your scr
 ## ⚡ Quick Start
 
 ```bash
-npm install -g @usejarvis/brain   # Install the daemon
+bun install -g @usejarvis/brain   # Install the daemon
 jarvis onboard                    # Interactive setup wizard
 jarvis start -d                   # Start as background daemon
 ```
 
 Open `http://localhost:3142` — your dashboard is ready.
+
+---
+
+## ☁️ Managed Hosting
+
+Don't want to deal with servers, DNS, or TLS certificates? We've partnered with **[opencove.host](https://opencove.host)** — a managed hosting platform built specifically for JARVIS.
+
+- **No self-hosting hassle** — no server to provision, no dependencies to install
+- **Dedicated domain included** — no need to buy a domain or configure DNS and TLS
+- **Up and running in under 5 minutes** — spin up your JARVIS instance and start using it immediately
+
+Visit [opencove.host](https://opencove.host) to get started.
 
 ---
 
@@ -102,10 +125,10 @@ Open `http://localhost:3142` — your dashboard is ready.
 
 ## 📦 Installation
 
-### npm (recommended)
+### bun (recommended)
 
 ```bash
-npm install -g @usejarvis/brain
+bun install -g @usejarvis/brain
 jarvis onboard
 ```
 
@@ -155,10 +178,10 @@ This means you can run the daemon on an always-on server and still interact with
 
 ### 1. Install the sidecar
 
-**Via npm:**
+**Via bun:**
 
 ```bash
-npm install -g @usejarvis/sidecar
+bun install -g @usejarvis/sidecar
 ```
 
 **Or download the binary** from [GitHub Releases](https://github.com/vierisid/jarvis/releases) for your platform (macOS, Linux, Windows).
@@ -274,29 +297,29 @@ See [config.example.yaml](config.example.yaml) for the full reference including 
 │                     JARVIS Daemon                           │
 │                  (server or local machine)                  │
 │                                                             │
-│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
-│  │ LLM      │  │ Vault    │  │ Agent     │  │ Workflow   │  │
-│  │ Router   │  │ Memory   │  │ Manager   │  │ Engine     │  │
-│  └──────────┘  └──────────┘  └───────────┘  └───────────┘  │
-│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
-│  │ Tool     │  │ Authority│  │ Goal      │  │ Awareness  │  │
-│  │ Executor │  │ Engine   │  │ Tracker   │  │ Pipeline   │  │
-│  └──────────┘  └──────────┘  └───────────┘  └───────────┘  │
+│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐   │
+│  │ LLM      │  │ Vault    │  │ Agent     │  │ Workflow  │   │
+│  │ Router   │  │ Memory   │  │ Manager   │  │ Engine    │   │
+│  └──────────┘  └──────────┘  └───────────┘  └───────────┘   │
+│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐   │ 
+│  │ Tool     │  │ Authority│  │ Goal      │  │ Awareness │   │
+│  │ Executor │  │ Engine   │  │ Tracker   │  │ Pipeline  │   │
+│  └──────────┘  └──────────┘  └───────────┘  └───────────┘   │
 │                                                             │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ Bun.serve() — HTTP + WebSocket + Dashboard (React)   │   │
 │  └──────────────────────────────────────────────────────┘   │
 └──────────────┬──────────────────────┬───────────────────────┘
                │ JWT-auth WebSocket   │
-       ┌───────┴───────┐      ┌──────┴────────┐
-       │  Sidecar #1   │      │  Sidecar #2   │      ...
-       │  (laptop)     │      │  (dev server) │
-       │               │      │               │
-       │  desktop      │      │  terminal     │
-       │  browser      │      │  filesystem   │
-       │  terminal     │      │  screenshots  │
-       │  clipboard    │      │               │
-       └───────────────┘      └───────────────┘
+       ┌───────┴───────┐       ┌──────┴────────┐
+       │  Sidecar #1   │       │  Sidecar #2   │      ...
+       │  (laptop)     │       │  (dev server) │
+       │               │       │               │
+       │  desktop      │       │  terminal     │
+       │  browser      │       │  filesystem   │
+       │  terminal     │       │  screenshots  │
+       │  clipboard    │       │               │
+       └───────────────┘       └───────────────┘
 ```
 
 The **daemon** is the brain — it holds the LLM connections, memory vault, agent hierarchy, and all decision-making. It can run on a home server, a VPS, or your local machine.
@@ -325,7 +348,7 @@ bun run db:init         # Initialize or reset the database
 - **LLM**: Anthropic Claude, OpenAI GPT, Google Gemini, Ollama
 - **Desktop sidecar**: Go (JWT auth, WebSocket RPC, platform-specific automation)
 - **Voice**: openwakeword (ONNX), Edge TTS / ElevenLabs
-- **Package**: [`@usejarvis/brain`](https://www.npmjs.com/package/@usejarvis/brain) on npm
+- **Package**: `@usejarvis/brain` (published to npm registry, installable via bun)
 
 ---
 
