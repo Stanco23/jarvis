@@ -14,10 +14,11 @@
  */
 
 import { join } from 'node:path';
-import { readFileSync, existsSync, openSync } from 'node:fs';
+import { readFileSync, openSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { acquireLock, releaseLock, isLocked, getLogPath } from '../src/daemon/pid.ts';
 import { c } from '../src/cli/helpers.ts';
+import { ensurePortReleased, getConfiguredPort } from '../src/cli/lifecycle.ts';
 
 const PACKAGE_ROOT = join(import.meta.dir, '..');
 
@@ -176,8 +177,17 @@ async function cmdStart(args: string[]): Promise<void> {
 
 async function cmdStop(): Promise<void> {
   const pid = isLocked();
+  const port = getConfiguredPort();
   if (!pid) {
-    console.log(c.yellow('JARVIS is not running.'));
+    const cleanup = await ensurePortReleased(port);
+    if (cleanup.terminated.length > 0 || cleanup.forced.length > 0) {
+      const details = cleanup.forced.length > 0
+        ? ` Force-killed lingering listener(s) on port ${port}: ${cleanup.forced.join(', ')}.`
+        : ` Cleaned up lingering listener(s) on port ${port}: ${cleanup.terminated.join(', ')}.`;
+      console.log(c.green(`✓ JARVIS was not locked, but the port is now clear.${details}`));
+    } else {
+      console.log(c.yellow('JARVIS is not running.'));
+    }
     return;
   }
 
@@ -197,8 +207,19 @@ async function cmdStop(): Promise<void> {
       try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
     }
 
+    const cleanup = await ensurePortReleased(port);
     releaseLock();
-    console.log(c.green('✓ JARVIS daemon stopped.'));
+    if (!cleanup.released) {
+      console.error(c.red(`✗ JARVIS stopped but port ${port} is still occupied.`));
+      process.exit(1);
+    }
+
+    const details = cleanup.forced.length > 0
+      ? ` Force-killed lingering listener(s) on port ${port}: ${cleanup.forced.join(', ')}.`
+      : cleanup.terminated.length > 0
+        ? ` Cleaned up lingering listener(s) on port ${port}: ${cleanup.terminated.join(', ')}.`
+        : '';
+    console.log(c.green(`✓ JARVIS daemon stopped.${details}`));
   } catch (err) {
     console.error(c.red(`Failed to stop process ${pid}: ${err}`));
     releaseLock();
@@ -212,12 +233,7 @@ function cmdStatus(): void {
 
     // Try to read the port from config
     try {
-      const { homedir } = require('node:os');
-      const configPath = join(homedir(), '.jarvis', 'config.yaml');
-      const YAML = require('yaml');
-      const text = readFileSync(configPath, 'utf-8');
-      const cfg = YAML.parse(text);
-      const port = cfg?.daemon?.port ?? 3142;
+      const port = getConfiguredPort();
       console.log(c.dim(`  Dashboard: http://localhost:${port}`));
     } catch {
       console.log(c.dim(`  Dashboard: http://localhost:3142`));
