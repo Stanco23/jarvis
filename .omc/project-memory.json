@@ -1,0 +1,392 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776475580827,
+  "projectRoot": "/home/shadowarch/jarvis-dev",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "19.2.4",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.4",
+        "category": "frontend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "npm test",
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "start": "bun run src/daemon/index.ts",
+      "dev": "bun --hot run src/daemon/index.ts",
+      "copy:models": "mkdir -p ui/public/openwakeword/models ui/public/ort && cp node_modules/openwakeword-wasm-browser/models/melspectrogram.onnx node_modules/openwakeword-wasm-browser/models/embedding_model.onnx node_modules/openwakeword-wasm-browser/models/silero_vad.onnx node_modules/openwakeword-wasm-browser/models/hey_jarvis_v0.1.onnx ui/public/openwakeword/models/ && cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs ui/public/ort/",
+      "prebuild:ui": "bun run copy:models",
+      "build:ui": "bun build ui/index.html --outdir ui/dist",
+      "test": "bun test",
+      "db:init": "bun run src/vault/schema.ts",
+      "setup": "bun run scripts/setup-config.ts",
+      "test:llm": "bun run src/llm/test.ts",
+      "examples": "bun run examples/llm-integration.ts",
+      "setup:google": "bun run src/scripts/google-setup.ts",
+      "postinstall": "node scripts/ensure-bun.cjs && (bun run copy:models 2>/dev/null || true)",
+      "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+      "prepublishOnly": "bun run copy:models && bun run build:ui"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "bin",
+      "docs",
+      "examples",
+      "scripts",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "bin": {
+      "path": "bin",
+      "purpose": "Executable scripts",
+      "fileCount": 1,
+      "lastAccessed": 1776475580814,
+      "keyFiles": [
+        "jarvis.ts"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 4,
+      "lastAccessed": 1776475580814,
+      "keyFiles": [
+        "LLM_PROVIDERS.md",
+        "PERSONALITY_ENGINE.md",
+        "VAULT_EXTRACTOR.md",
+        "WORKFLOW_AUTOMATION.md"
+      ]
+    },
+    "examples": {
+      "path": "examples",
+      "purpose": "Example code",
+      "fileCount": 4,
+      "lastAccessed": 1776475580821,
+      "keyFiles": [
+        "extractor-demo.ts",
+        "full-integration.ts",
+        "llm-integration.ts",
+        "personality-demo.ts"
+      ]
+    },
+    "roles": {
+      "path": "roles",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1776475580822,
+      "keyFiles": [
+        "activity-observer.yaml",
+        "ceo-founder.yaml",
+        "chief-of-staff.yaml",
+        "dev-lead.yaml",
+        "executive-assistant.yaml"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 4,
+      "lastAccessed": 1776475580824,
+      "keyFiles": [
+        "build-sidecar.ts",
+        "ensure-bun.cjs",
+        "setup-config.ts",
+        "test-whatsapp-snapshot.ts"
+      ]
+    },
+    "sidecar": {
+      "path": "sidecar",
+      "purpose": null,
+      "fileCount": 28,
+      "lastAccessed": 1776475580824,
+      "keyFiles": [
+        "Makefile",
+        "README.md",
+        "browser.go",
+        "client.go",
+        "config.go"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 1,
+      "lastAccessed": 1776475580824,
+      "keyFiles": [
+        "global.d.ts"
+      ]
+    },
+    "ui": {
+      "path": "ui",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1776475580824,
+      "keyFiles": [
+        "index.html",
+        "overlay.html"
+      ]
+    },
+    "webapp-templates": {
+      "path": "webapp-templates",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1776475580825,
+      "keyFiles": [
+        "gcalendar.yaml",
+        "gmail.yaml",
+        "gsheets.yaml",
+        "whatsapp.yaml"
+      ]
+    },
+    "src/config": {
+      "path": "src/config",
+      "purpose": "Configuration files",
+      "fileCount": 5,
+      "lastAccessed": 1776475580826,
+      "keyFiles": [
+        "README.md",
+        "index.ts",
+        "loader.test.ts"
+      ]
+    },
+    "ui/dist": {
+      "path": "ui/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 3,
+      "lastAccessed": 1776475580826,
+      "keyFiles": [
+        "index-2a1612na.js",
+        "index-9vmj8127.css",
+        "index.html"
+      ]
+    },
+    "ui/public": {
+      "path": "ui/public",
+      "purpose": "Public files",
+      "fileCount": 0,
+      "lastAccessed": 1776475580826,
+      "keyFiles": []
+    },
+    "ui/src": {
+      "path": "ui/src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1776475580826,
+      "keyFiles": [
+        "App.tsx",
+        "declarations.d.ts",
+        "main.tsx"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/cli/onboard.ts",
+      "accessCount": 71,
+      "lastAccessed": 1776480692021,
+      "type": "file"
+    },
+    {
+      "path": "scripts/fast-whisper-server.py",
+      "accessCount": 16,
+      "lastAccessed": 1776479710082,
+      "type": "file"
+    },
+    {
+      "path": "src/config/types.ts",
+      "accessCount": 12,
+      "lastAccessed": 1776480162283,
+      "type": "file"
+    },
+    {
+      "path": "src/comms/voice.ts",
+      "accessCount": 9,
+      "lastAccessed": 1776477341698,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 3,
+      "lastAccessed": 1776477173800,
+      "type": "file"
+    },
+    {
+      "path": "src/llm/anthropic.ts",
+      "accessCount": 2,
+      "lastAccessed": 1776475790441,
+      "type": "file"
+    },
+    {
+      "path": "src/llm/manager.ts",
+      "accessCount": 2,
+      "lastAccessed": 1776476044132,
+      "type": "file"
+    },
+    {
+      "path": "src/llm/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1776476451095,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 2,
+      "lastAccessed": 1776477162290,
+      "type": "directory"
+    },
+    {
+      "path": "",
+      "accessCount": 2,
+      "lastAccessed": 1776477169139,
+      "type": "directory"
+    },
+    {
+      "path": "src/sidecar/manager.ts",
+      "accessCount": 2,
+      "lastAccessed": 1776479219816,
+      "type": "file"
+    },
+    {
+      "path": "sidecar/README.md",
+      "accessCount": 2,
+      "lastAccessed": 1776479309075,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 2,
+      "lastAccessed": 1776479309140,
+      "type": "file"
+    },
+    {
+      "path": "CLAUDE.md",
+      "accessCount": 1,
+      "lastAccessed": 1776475759505,
+      "type": "file"
+    },
+    {
+      "path": "config.example.yaml",
+      "accessCount": 1,
+      "lastAccessed": 1776475761853,
+      "type": "file"
+    },
+    {
+      "path": "src/daemon/index.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776475765488,
+      "type": "file"
+    },
+    {
+      "path": "docs/sidecar/SIDECAR_PROTOCOL.md",
+      "accessCount": 1,
+      "lastAccessed": 1776475768902,
+      "type": "file"
+    },
+    {
+      "path": "src/config/loader.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776475769068,
+      "type": "file"
+    },
+    {
+      "path": "docs/sidecar/SIDECAR_AUTHENTICATION.md",
+      "accessCount": 1,
+      "lastAccessed": 1776475773604,
+      "type": "file"
+    },
+    {
+      "path": "src/actions/tools/sidecar-route.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776475773656,
+      "type": "file"
+    },
+    {
+      "path": "src/llm/provider.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776476044187,
+      "type": "file"
+    },
+    {
+      "path": "src/llm/minimax.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776476441421,
+      "type": "file"
+    },
+    {
+      "path": "src/cli",
+      "accessCount": 1,
+      "lastAccessed": 1776477154211,
+      "type": "directory"
+    },
+    {
+      "path": "src/cli/deps.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776477162228,
+      "type": "file"
+    },
+    {
+      "path": "src/sidecar",
+      "accessCount": 1,
+      "lastAccessed": 1776479216351,
+      "type": "directory"
+    },
+    {
+      "path": "src/sidecar/types.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776479219787,
+      "type": "file"
+    },
+    {
+      "path": "src/cli/autostart.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776479468944,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

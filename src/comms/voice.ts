@@ -171,7 +171,8 @@ export function createSTTProvider(config: STTConfig): STTProvider | null {
       if (!config.groq?.api_key) return null;
       return new GroqWhisperSTT(config.groq.api_key, config.groq.model);
     case 'local':
-      return new LocalWhisperSTT(config.local?.endpoint, config.local?.model, config.local?.server_type);
+    case 'fast-whisper':
+      return new LocalWhisperSTT(config.local?.endpoint, config.local?.model, config.local?.server_type ?? 'openai_compatible');
     default:
       return null;
   }
@@ -306,6 +307,137 @@ export async function listElevenLabsVoices(apiKey: string): Promise<{
 }
 
 /**
+ * MiniMax TTS Provider — uses MiniMax T2A API.
+ * Supports streaming and non-streaming synthesis.
+ */
+export class MiniMaxTTSProvider implements TTSProvider {
+  private apiKey: string;
+  private voiceId: string;
+  private model: string;
+  private speed: number;
+  private vol: number;
+  private pitch: number;
+  private sampleRate: number;
+  private bitrate: number;
+  private format: string;
+  private apiUrl = 'https://api.minimax.io/v1/t2a_v2';
+
+  constructor(config: NonNullable<TTSConfig['minimax']>) {
+    this.apiKey = config.api_key;
+    this.voiceId = config.voice_id ?? 'English_Graceful_Lady';
+    this.model = config.model ?? 'speech-2.8-hd';
+    this.speed = config.speed ?? 1.0;
+    this.vol = config.vol ?? 1.0;
+    this.pitch = config.pitch ?? 0;
+    this.sampleRate = config.sample_rate ?? 32000;
+    this.bitrate = config.bitrate ?? 128000;
+    this.format = config.format ?? 'mp3';
+  }
+
+  async synthesize(text: string): Promise<Buffer> {
+    const response = await fetch(this.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        text,
+        stream: false,
+        voice_setting: {
+          voice_id: this.voiceId,
+          speed: this.speed,
+          vol: this.vol,
+          pitch: this.pitch,
+        },
+        audio_setting: {
+          sample_rate: this.sampleRate,
+          bitrate: this.bitrate,
+          format: this.format,
+          channel: 1,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`MiniMax TTS error (${response.status}): ${err}`);
+    }
+
+    const data = await response.json() as any;
+    if (data.data?.audio) {
+      return Buffer.from(data.data.audio, 'hex');
+    }
+    throw new Error('MiniMax TTS: no audio in response');
+  }
+
+  async *synthesizeStream(text: string): AsyncIterable<Buffer> {
+    const response = await fetch(this.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        text,
+        stream: true,
+        voice_setting: {
+          voice_id: this.voiceId,
+          speed: this.speed,
+          vol: this.vol,
+          pitch: this.pitch,
+        },
+        audio_setting: {
+          sample_rate: this.sampleRate,
+          bitrate: this.bitrate,
+          format: this.format,
+          channel: 1,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`MiniMax TTS stream error (${response.status})`);
+    }
+
+    if (!response.body) {
+      throw new Error('MiniMax TTS: no response body');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim() || !line.startsWith('data: ')) continue;
+
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const event = JSON.parse(data);
+          if (event.data?.audio) {
+            yield Buffer.from(event.data.audio, 'hex');
+          }
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+    }
+  }
+}
+
+/**
  * Factory: create the right TTS provider from config.
  * Returns null if TTS is disabled.
  */
@@ -315,6 +447,11 @@ export function createTTSProvider(config: TTSConfig): TTSProvider | null {
   if (config.provider === 'elevenlabs') {
     if (!config.elevenlabs?.api_key) return null;
     return new ElevenLabsTTSProvider(config.elevenlabs);
+  }
+
+  if (config.provider === 'minimax') {
+    if (!config.minimax?.api_key) return null;
+    return new MiniMaxTTSProvider(config.minimax);
   }
 
   // Default: Edge TTS

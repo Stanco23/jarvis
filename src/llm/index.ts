@@ -16,6 +16,7 @@ export { GroqProvider } from './groq.ts';
 export { GeminiProvider } from './gemini.ts';
 export { OllamaProvider } from './ollama.ts';
 export { OpenRouterProvider } from './openrouter.ts';
+export { MiniMaxProvider } from './minimax.ts';
 
 // Manager
 export { LLMManager } from './manager.ts';

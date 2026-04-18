@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"npx tsc --noEmit 2>&1\"}",
+  "error": "Exit code 2\nsrc/cli/onboard.ts(604,5): error TS1128: Declaration or statement expected.\nsrc/cli/onboard.ts(947,1): error TS1128: Declaration or statement expected.",
+  "timestamp": "2026-04-18T02:51:22.052Z",
+  "retry_count": 2
+}

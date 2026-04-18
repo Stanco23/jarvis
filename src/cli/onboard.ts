@@ -78,6 +78,7 @@ export async function runOnboard(): Promise<void> {
     { label: 'Ollama (Local)', value: 'ollama' as const, description: 'Free, runs locally' },
     { label: 'OpenRouter', value: 'openrouter' as const, description: 'Access hundreds of models via single API key' },
     { label: 'Groq', value: 'groq' as const, description: 'Fast, OpenAI-compatible API' },
+    { label: 'MiniMax', value: 'minimax' as const, description: 'MiniMax M2.7 models, includes TTS' },
   ], config.llm.primary as any);
 
   config.llm.primary = provider;
@@ -292,6 +293,40 @@ export async function runOnboard(): Promise<void> {
 
     config.llm.ollama = { base_url: url, model };
     printInfo('Make sure Ollama is running: ollama serve');
+  } else if (provider === 'minimax') {
+    const existing = config.llm.minimax?.api_key;
+    if (existing && existing.length > 5) {
+      const keep = await askYesNo(`API key found (${existing.slice(0, 10)}...). Keep it?`, true);
+      if (!keep) {
+        const key = await askSecret('Enter your MiniMax API key');
+        if (key) config.llm.minimax = { ...config.llm.minimax, api_key: key };
+      }
+    } else {
+      const configureNow = await askYesNo('Add your MiniMax API key now?', true);
+      if (configureNow) {
+        const key = await askSecret('Enter your MiniMax API key');
+        if (key) {
+          config.llm.minimax = { ...config.llm.minimax, api_key: key };
+        } else {
+          printWarn('No API key set. JARVIS won\'t work without one.');
+        }
+      } else {
+        printWarn('No API key set. JARVIS won\'t work without one.');
+      }
+    }
+
+    const currentModel = config.llm.minimax?.model ?? 'mini-max-m2.7';
+    const minimaxModels = [
+      { label: 'MiniMax M2.7', value: 'mini-max-m2.7', description: 'Latest flagship, recursive self-improvement' },
+      { label: 'MiniMax M2.7 HighSpeed', value: 'mini-max-m2.7-highspeed', description: 'Same performance, faster inference' },
+      { label: 'MiniMax M2.5', value: 'mini-max-m2.5', description: 'Optimized for code generation' },
+      { label: 'MiniMax M2.5 HighSpeed', value: 'mini-max-m2.5-highspeed', description: 'Faster inference' },
+      { label: 'Custom', value: 'custom', description: 'Enter model name manually' },
+    ];
+    const isPreset = minimaxModels.some(m => m.value === currentModel);
+    const modelChoice = await askChoice('Choose a model:', minimaxModels, isPreset ? currentModel : 'custom');
+    const model = modelChoice === 'custom' ? await ask('Enter model name', currentModel) : modelChoice;
+    if (config.llm.minimax) config.llm.minimax.model = model;
   }
 
   // Test connectivity
@@ -299,7 +334,7 @@ export async function runOnboard(): Promise<void> {
   if (testConn) {
     const spin = startSpinner('Testing connection...');
     try {
-      const { LLMManager, AnthropicProvider, OpenAIProvider, GroqProvider, GeminiProvider, OllamaProvider, OpenRouterProvider } = await import('../llm/index.ts');
+      const { LLMManager, AnthropicProvider, OpenAIProvider, GroqProvider, GeminiProvider, OllamaProvider, OpenRouterProvider, MiniMaxProvider } = await import('../llm/index.ts');
       const manager = new LLMManager();
 
       if (provider === 'anthropic' && config.llm.anthropic?.api_key) {
@@ -314,6 +349,8 @@ export async function runOnboard(): Promise<void> {
         manager.registerProvider(new OpenRouterProvider(config.llm.openrouter.api_key, config.llm.openrouter.model));
       } else if (provider === 'ollama') {
         manager.registerProvider(new OllamaProvider(config.llm.ollama?.base_url, config.llm.ollama?.model));
+      } else if (provider === 'minimax' && config.llm.minimax?.api_key) {
+        manager.registerProvider(new MiniMaxProvider(config.llm.minimax.api_key, config.llm.minimax.model));
       }
 
       manager.setPrimary(provider);
@@ -335,7 +372,7 @@ export async function runOnboard(): Promise<void> {
   }
 
   // Fallback providers
-  config.llm.fallback = ['anthropic', 'openai', 'gemini', 'ollama', 'openrouter', 'groq'].filter(p => p !== provider);
+  config.llm.fallback = ['anthropic', 'openai', 'gemini', 'ollama', 'openrouter', 'groq', 'minimax'].filter(p => p !== provider);
 
   // ── Step 3: Fallback API Keys ─────────────────────────────────────
 
@@ -408,6 +445,7 @@ export async function runOnboard(): Promise<void> {
     const ttsProvider = await askChoice('TTS provider:', [
       { label: 'Microsoft Edge TTS', value: 'edge' as const, description: 'Free, no API key needed' },
       { label: 'ElevenLabs', value: 'elevenlabs' as const, description: 'Premium quality, API key required' },
+      { label: 'MiniMax', value: 'minimax' as const, description: 'MiniMax TTS, high quality, API key required' },
     ], config.tts.provider ?? 'edge');
 
     config.tts.provider = ttsProvider;
@@ -487,13 +525,83 @@ export async function runOnboard(): Promise<void> {
           { label: 'Multilingual v2', value: 'eleven_multilingual_v2', description: 'Higher quality' },
         ], config.tts.elevenlabs.model ?? 'eleven_flash_v2_5');
         config.tts.elevenlabs.model = elModel;
+      }
+    } else if (ttsProvider === 'minimax') {
+      const existing = config.tts.minimax?.api_key;
+      let apiKey: string;
+
+      if (existing) {
+        const keep = await askYesNo('MiniMax API key found. Keep it?', true);
+        apiKey = keep ? existing : await askSecret('MiniMax API key');
+      } else {
+        apiKey = await askSecret('MiniMax API key');
+      }
+
+      if (apiKey) {
+        config.tts.minimax = {
+          ...config.tts.minimax,
+          api_key: apiKey,
+          voice_id: config.tts.minimax?.voice_id ?? 'English_Graceful_Lady',
+          model: config.tts.minimax?.model ?? 'speech-2.8-hd',
+          speed: config.tts.minimax?.speed ?? 1.0,
+          vol: config.tts.minimax?.vol ?? 1.0,
+          pitch: config.tts.minimax?.pitch ?? 0,
+          sample_rate: config.tts.minimax?.sample_rate ?? 32000,
+          bitrate: config.tts.minimax?.bitrate ?? 128000,
+          format: config.tts.minimax?.format ?? 'mp3',
+        };
+
+        const voiceChoice = await askChoice('Choose a voice:', [
+          // English
+          { label: 'Graceful Lady (English)', value: 'English_Graceful_Lady' },
+          { label: 'Expressive Narrator (English)', value: 'English_expressive_narrator' },
+          { label: 'Radiant Girl (English)', value: 'English_radiant_girl' },
+          { label: 'Mature Partner (English)', value: 'English_MaturePartner' },
+          { label: 'Magnetic-voiced Man (English)', value: 'English_magnetic_voiced_man' },
+          { label: 'Captivating Storyteller (English)', value: 'English_captivatingStoryteller' },
+          { label: 'Deep-voiced Gentleman (English)', value: 'English_Deep-VoicedGentleman' },
+          { label: 'Trustworthy Man (English)', value: 'English_Trustworth_Man' },
+          { label: 'Wise Lady (English)', value: 'English_Wiselady' },
+          { label: 'Anime Character (English)', value: 'English_AnimeCharacter' },
+          // Chinese Mandarin
+          { label: 'News Anchor (Chinese)', value: 'Chinese (Mandarin)_News_Anchor' },
+          { label: 'Reliable Executive (Chinese)', value: 'Chinese (Mandarin)_Reliable_Executive' },
+          { label: 'Warm Bestie (Chinese)', value: 'Chinese (Mandarin)_Warm_Bestie' },
+          { label: 'Gentleman (Chinese)', value: 'Chinese (Mandarin)_Gentleman' },
+          { label: 'Radio Host (Chinese)', value: 'Chinese (Mandarin)_Radio_Host' },
+          // Japanese
+          { label: 'Intellectual Senior (Japanese)', value: 'Japanese_IntellectualSenior' },
+          { label: 'Calm Lady (Japanese)', value: 'Japanese_CalmLady' },
+          { label: 'Decisive Princess (Japanese)', value: 'Japanese_DecisivePrincess' },
+          // Korean
+          { label: 'Wise Teacher (Korean)', value: 'Korean_WiseTeacher' },
+          { label: 'Gentle Woman (Korean)', value: 'Korean_GentleWoman' },
+          { label: 'Enthusiastic Teen (Korean)', value: 'Korean_EnthusiasticTeen' },
+          // Spanish
+          { label: 'Narrator (Spanish)', value: 'Spanish_Narrator' },
+          { label: 'Wise Scholar (Spanish)', value: 'Spanish_WiseScholar' },
+          { label: 'Comedian (Spanish)', value: 'Spanish_Comedian' },
+          // Portuguese
+          { label: 'Sentimental Lady (Portuguese)', value: 'Portuguese_SentimentalLady' },
+          { label: 'Bossy Leader (Portuguese)', value: 'Portuguese_BossyLeader' },
+          // Custom
+          { label: 'Custom voice ID', value: 'custom' },
+        ], config.tts.minimax.voice_id ?? 'English_Graceful_Lady');
+
+        if (voiceChoice === 'custom') {
+          const customVoice = await ask('Enter voice ID');
+          if (customVoice) config.tts.minimax.voice_id = customVoice;
+        } else {
+          config.tts.minimax.voice_id = voiceChoice;
+        }
       } else {
         printWarn('No API key provided. Falling back to Edge TTS.');
         config.tts.provider = 'edge';
         config.tts.voice = 'en-US-AriaNeural';
       }
     }
-  } else {
+  }
+  else {
     printInfo('Skipped. Enable later in config.');
   }
 
@@ -507,7 +615,8 @@ export async function runOnboard(): Promise<void> {
     const sttProvider = await askChoice('STT provider:', [
       { label: 'OpenAI Whisper', value: 'openai' as const, description: 'Best accuracy, uses OpenAI API key' },
       { label: 'Groq Whisper', value: 'groq' as const, description: 'Fast, free tier available' },
-      { label: 'Local Whisper', value: 'local' as const, description: 'Self-hosted, fully private' },
+      { label: 'Fast Whisper (Local)', value: 'fast-whisper' as const, description: 'Self-hosted, auto-installs faster-whisper' },
+      { label: 'Local Whisper', value: 'local' as const, description: 'Custom whisper.cpp server' },
     ], config.stt?.provider as any ?? 'openai');
 
     config.stt = { provider: sttProvider };
@@ -532,6 +641,69 @@ export async function runOnboard(): Promise<void> {
     } else if (sttProvider === 'local') {
       const endpoint = await ask('Local Whisper endpoint', 'http://localhost:8080');
       config.stt.local = { endpoint };
+    } else if (sttProvider === 'fast-whisper') {
+      const endpoint = await ask('Fast Whisper endpoint', 'http://localhost:8000');
+      const model = await ask('Model to use (default: base)', 'base');
+      const venvPath = await ask('Virtual environment path (optional, for Arch/etc)', '~/.jarvis/venv');
+      config.stt.local = { endpoint, model, server_type: 'openai_compatible' };
+
+      // Offer to set up venv first (for Arch Linux where pip install to system Python is restricted)
+      const needsVenv = !await askYesNo('Can you pip install faster-whisper to system Python?', false);
+      let actualVenvPath = '';
+      if (needsVenv) {
+        const expandedPath = venvPath.replace('~', process.env.HOME ?? '');
+        const setupVenv = await askYesNo(`Set up virtual environment at ${expandedPath}?`, true);
+        if (setupVenv) {
+          const spin = startSpinner('Creating virtual environment and installing faster-whisper...');
+          try {
+            const { spawnSync } = await import('bun');
+            const result = spawnSync({
+              cmd: ['python3', 'scripts/fast-whisper-server.py', `--setup-venv=${expandedPath}`],
+              cwd: process.cwd(),
+              stdout: 'pipe',
+              stderr: 'pipe',
+            });
+            if (result.exitCode !== 0) {
+              spin.stop();
+              const stderr = result.stderr ? new TextDecoder().decode(result.stderr) : '';
+              printErr(`Failed to set up venv: ${stderr || 'unknown error'}`);
+              printInfo('Set up venv manually: python3 scripts/fast-whisper-server.py --setup-venv ~/.jarvis/venv');
+            } else {
+              spin.stop('Virtual environment ready at ' + expandedPath);
+              actualVenvPath = expandedPath;
+            }
+          } catch (err) {
+            spin.stop();
+            printErr(`Failed to set up venv: ${err}`);
+          }
+        }
+      }
+
+      // Start the fast-whisper server
+      const startServer = await askYesNo('Start fast-whisper server now?', true);
+      if (startServer) {
+        const spin = startSpinner('Starting fast-whisper server...');
+        try {
+          const { spawn } = await import('bun');
+          const cmdArgs = actualVenvPath
+            ? ['python3', 'scripts/fast-whisper-server.py', `--venv=${actualVenvPath}`, `--model=${model}`, '--port=8000']
+            : ['python3', 'scripts/fast-whisper-server.py', `--model=${model}`, '--port=8000'];
+
+          const serverProcess = spawn({
+            cmd: cmdArgs,
+            cwd: process.cwd(),
+            stdout: 'inherit',
+            stderr: 'inherit',
+            detached: true,
+          });
+          spin.stop('Fast-whisper server started on http://localhost:8000');
+          printInfo('Server is running in background. STT will use it automatically.');
+        } catch (err) {
+          spin.stop();
+          printErr(`Failed to start fast-whisper server: ${err}`);
+          printInfo('You can start it manually: python3 scripts/fast-whisper-server.py' + (actualVenvPath ? ` --venv=${actualVenvPath}` : ''));
+        }
+      }
     }
   } else {
     printInfo('Skipped. Voice input will be disabled.');
@@ -699,7 +871,7 @@ export async function runOnboard(): Promise<void> {
 
   const ttsLabel = !config.tts?.enabled ? 'disabled'
     : config.tts.provider === 'elevenlabs' ? 'ElevenLabs'
-    : `${config.tts.voice} (Edge)`;
+      : `${config.tts.voice} (Edge)`;
 
   const summaryItems: [string, string][] = [
     ['User', config.user?.name || c.dim('not set')],

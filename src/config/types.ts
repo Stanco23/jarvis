@@ -24,7 +24,7 @@ export type ChannelConfig = {
 };
 
 export type STTConfig = {
-  provider: 'openai' | 'groq' | 'local';
+  provider: 'openai' | 'groq' | 'local' | 'fast-whisper';
   openai?: { api_key: string; model?: string };
   groq?: { api_key: string; model?: string };
   local?: { endpoint: string; model?: string; server_type?: 'whisper_cpp' | 'openai_compatible' };
@@ -32,7 +32,7 @@ export type STTConfig = {
 
 export type TTSConfig = {
   enabled: boolean;
-  provider?: 'edge' | 'elevenlabs';  // default: 'edge'
+  provider?: 'edge' | 'elevenlabs' | 'minimax';  // default: 'edge'
   voice?: string;       // e.g. 'en-US-AriaNeural' (edge)
   rate?: string;        // e.g. '+0%', '+10%' (edge)
   volume?: string;      // e.g. '+0%' (edge)
@@ -42,6 +42,17 @@ export type TTSConfig = {
     model?: string;           // 'eleven_flash_v2_5' | 'eleven_multilingual_v2'
     stability?: number;       // 0-1
     similarity_boost?: number; // 0-1
+  };
+  minimax?: {
+    api_key: string;
+    voice_id?: string;       // e.g. 'English_Graceful_Lady'
+    model?: string;          // 'speech-2.8-hd', 'speech-2.6-hd', etc.
+    speed?: number;           // 0.5-2.0, default 1.0
+    vol?: number;             // 0-2, default 1.0
+    pitch?: number;           // -24 to 24, default 0
+    sample_rate?: number;     // 16000, 32000, 48000
+    bitrate?: number;         // 128000, 192000, 256000
+    format?: 'mp3' | 'pcm' | 'flac' | 'wav';
   };
 };
 
@@ -153,6 +164,7 @@ export type JarvisConfig = {
     gemini?: { api_key: string; model?: string };
     ollama?: { base_url?: string; model?: string };
     openrouter?: { api_key: string; model?: string };
+    minimax?: { api_key: string; model?: string; group_id?: string };
   };
   personality: {
     core_traits: string[];
@@ -195,6 +207,17 @@ export const DEFAULT_CONFIG: JarvisConfig = {
     voice: 'en-US-AriaNeural',
     rate: '+0%',
     volume: '+0%',
+    minimax: {
+      api_key: '',
+      voice_id: 'English_Graceful_Lady',
+      model: 'speech-2.8-hd',
+      speed: 1.0,
+      vol: 1.0,
+      pitch: 0,
+      sample_rate: 32000,
+      bitrate: 128000,
+      format: 'mp3',
+    },
   },
   desktop: {
     enabled: true,
@@ -246,6 +269,10 @@ export const DEFAULT_CONFIG: JarvisConfig = {
     openrouter: {
       api_key: '',
       model: 'anthropic/claude-sonnet-4',
+    },
+    minimax: {
+      api_key: '',
+      model: 'mini-max-m2.7',
     },
   },
   personality: {
