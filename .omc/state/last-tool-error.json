@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"npx tsc --noEmit 2>&1\"}",
-  "error": "Exit code 2\nsrc/cli/onboard.ts(604,5): error TS1128: Declaration or statement expected.\nsrc/cli/onboard.ts(947,1): error TS1128: Declaration or statement expected.",
-  "timestamp": "2026-04-18T02:51:22.052Z",
-  "retry_count": 2
+  "tool_input_preview": "{\"command\":\"curl -s -o /dev/null -w \\\"%{http_code}\\\" -X POST https://api.minimax.io/anthropic \\\\\\n  -H \\\"x-api-key: ${MINIMAX_API_KEY:?}\\\" \\\\\\n  -H \\\"anthropic-version: 2023-06-01\\\" \\\\\\n  -H \\\"content...",
+  "error": "Exit code 127\n/usr/bin/bash: line 1: MINIMAX_API_KEY: parameter null or not set",
+  "timestamp": "2026-04-18T03:09:45.393Z",
+  "retry_count": 1
 }

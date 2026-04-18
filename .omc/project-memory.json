@@ -250,10 +250,22 @@
       "type": "file"
     },
     {
+      "path": "src/llm/minimax.ts",
+      "accessCount": 6,
+      "lastAccessed": 1776481806827,
+      "type": "file"
+    },
+    {
       "path": "package.json",
       "accessCount": 3,
       "lastAccessed": 1776477173800,
       "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 3,
+      "lastAccessed": 1776481545370,
+      "type": "directory"
     },
     {
       "path": "src/llm/anthropic.ts",
@@ -272,12 +284,6 @@
       "accessCount": 2,
       "lastAccessed": 1776476451095,
       "type": "file"
-    },
-    {
-      "path": "src",
-      "accessCount": 2,
-      "lastAccessed": 1776477162290,
-      "type": "directory"
     },
     {
       "path": "",
@@ -352,12 +358,6 @@
       "type": "file"
     },
     {
-      "path": "src/llm/minimax.ts",
-      "accessCount": 1,
-      "lastAccessed": 1776476441421,
-      "type": "file"
-    },
-    {
       "path": "src/cli",
       "accessCount": 1,
       "lastAccessed": 1776477154211,
@@ -386,6 +386,12 @@
       "accessCount": 1,
       "lastAccessed": 1776479468944,
       "type": "file"
+    },
+    {
+      "path": "src/llm",
+      "accessCount": 1,
+      "lastAccessed": 1776481452033,
+      "type": "directory"
     }
   ],
   "userDirectives": []

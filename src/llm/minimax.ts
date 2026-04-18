@@ -70,7 +70,7 @@ export class MiniMaxProvider implements LLMProvider {
 
   private async fetchWithRetry(body: string, stream: boolean = false): Promise<Response> {
     const headers: Record<string, string> = {
-      'x-api-key': this.apiKey,
+      'Authorization': `Bearer ${this.apiKey}`,
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     };
